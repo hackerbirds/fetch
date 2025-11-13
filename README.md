@@ -30,3 +30,7 @@ You'll need `cargo bundle`:
 - `cargo install cargo-bundle`
 
 Then: `RUSTFLAGS='-C target-cpu=native' cargo bundle --release`
+
+## Roadmap
+
+The roadmap is available at https://github.com/users/hackerbirds/projects/3. The current plan is to reach a 1.0 release, after which the app will be considered complete.
