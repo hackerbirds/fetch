@@ -26,6 +26,24 @@ fn main() {
     let hotkey = HotKey::new(Some(Modifiers::ALT), Code::Space);
     manager.register(hotkey).unwrap();
 
+    // Attempt to register app to auto-start on login
+    if cfg!(target_os = "macos") {
+        use smappservice_rs::{AppService, ServiceStatus, ServiceType};
+
+        let app_service = AppService::new(ServiceType::MainApp);
+
+        match app_service.status() {
+            // Either it's already enabled, or user/macOS did not allow
+            // Fetch to start, so, leave it as-is.
+            ServiceStatus::Enabled | ServiceStatus::RequiresApproval => {}
+            ServiceStatus::NotRegistered | ServiceStatus::NotFound => {
+                if app_service.register().is_err() {
+                    eprintln!("Registering app for auto-start failed");
+                }
+            }
+        }
+    }
+
     let app = Application::new();
 
     app.run(move |cx| {
