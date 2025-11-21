@@ -7,8 +7,8 @@ use global_hotkey::{
     hotkey::{Code, HotKey, Modifiers},
 };
 use gpui::{
-    AppContext, Application, Bounds, Pixels, Point, WindowBackgroundAppearance, WindowBounds,
-    WindowKind, WindowOptions, actions,
+    AppContext, Application, Bounds, Pixels, WindowBackgroundAppearance, WindowBounds, WindowKind,
+    WindowOptions, actions,
 };
 use gpui_component::Root;
 
@@ -55,6 +55,12 @@ fn main() {
         // This must be called before using any GPUI Component features.
         gpui_component::init(cx);
 
+        let display_center = cx
+            .primary_display()
+            .expect("Display exists")
+            .bounds()
+            .center();
+
         cx.spawn(async move |cx| {
             let search_engine = cx
                 .new(|_cx| SearchEngine::build(apps()))
@@ -74,18 +80,14 @@ fn main() {
                     .await
                 {
                     // Hotkey pressed -> open window
-
                     let window_options = WindowOptions {
-                        window_bounds: Some(WindowBounds::Windowed(Bounds {
-                            origin: Point {
-                                x: 50u32.into(),
-                                y: 50u32.into(),
-                            },
-                            size: gpui::Size {
-                                width: Pixels::from(400u32),
+                        window_bounds: Some(WindowBounds::Windowed(Bounds::centered_at(
+                            display_center,
+                            gpui::Size {
+                                width: Pixels::from(500u32),
                                 height: Pixels::from(180u32),
                             },
-                        })),
+                        ))),
                         focus: true,
                         show: true,
                         kind: WindowKind::PopUp,

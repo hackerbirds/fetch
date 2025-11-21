@@ -1,9 +1,9 @@
 use gpui::{
-    AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement, Render, Styled,
-    Subscription, Window, div,
+    AppContext, Context, Corners, Entity, InteractiveElement, IntoElement, ParentElement, Render,
+    Styled, Subscription, Window, div,
 };
-use gpui_component::StyledExt;
 use gpui_component::input::{Input, InputEvent, InputState};
+use gpui_component::{ActiveTheme, StyledExt};
 
 use crate::apps::app_string::AppString;
 use crate::search::SearchEngine;
@@ -63,7 +63,7 @@ impl Render for SearchBar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .v_flex()
-            .p_5()
+            .p_2()
             .gap_2()
             .size_full()
             .items_center()
@@ -80,7 +80,14 @@ impl Render for SearchBar {
                     window.remove_window();
                 }
             }))
-            .child(Input::new(&self.input_state).border_2())
+            .child(
+                Input::new(&self.input_state)
+                    .bg(cx.theme().secondary)
+                    .corner_radii(Corners::all(10.0f64.into()))
+                    .m_auto()
+                    .h_20()
+                    .text_2xl(),
+            )
             .child(
                 div()
                     .v_flex()
