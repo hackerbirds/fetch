@@ -120,7 +120,7 @@ pub fn substrings(string: &str, n: usize) -> Vec<String> {
 fn beginning_distance(substr: &AppSubstr, name: &AppString) -> usize {
     for word in name.split_ascii_whitespace() {
         let word_appstr = AppString::from(word);
-        for i in 0..word_appstr.len() - substr.len() {
+        for i in 0..word_appstr.len().saturating_sub(substr.len()) {
             let name_substr = word_appstr.substring(i, substr.len());
             if substr == &name_substr {
                 return i;
