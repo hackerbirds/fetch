@@ -43,6 +43,8 @@ impl SearchEngine {
             )
         });
 
+        filtered_apps.par_sort_by_cached_key(|app| app.name.clone());
+
         filtered_apps
     }
 
