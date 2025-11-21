@@ -35,6 +35,8 @@ impl SearchEngine {
             }
         });
 
+        filtered_apps.par_sort_by_cached_key(|app| app.name.clone());
+
         filtered_apps.par_sort_by_key(|app| {
             i32::from(
                 self.learned_substring_index
@@ -42,8 +44,6 @@ impl SearchEngine {
                     .is_none_or(|s| s.get().name != app.name),
             )
         });
-
-        filtered_apps.par_sort_by_cached_key(|app| app.name.clone());
 
         filtered_apps
     }
