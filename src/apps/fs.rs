@@ -3,10 +3,11 @@ use std::{ffi::OsStr, fs::DirEntry, path::PathBuf};
 use crate::apps::App;
 
 #[cfg(target_os = "macos")]
-const APPLICATION_DIRS: [&str; 4] = [
+const APPLICATION_DIRS: [&str; 5] = [
     "/Applications",
     "/Applications/Utilities",
     "/System/Applications",
+    "/System/Applications/Utilities",
     "~/Applications",
 ];
 
