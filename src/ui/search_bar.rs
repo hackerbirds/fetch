@@ -7,7 +7,7 @@ use gpui_component::input::{Input, InputEvent, InputState};
 
 use crate::apps::app_string::AppString;
 use crate::search::SearchEngine;
-use crate::ui::app_list::SearchResultsList;
+use crate::ui::search_results::SearchResultsList;
 use crate::{EnterPressed, EscPressed};
 
 pub struct SearchBar {
@@ -36,8 +36,8 @@ impl SearchBar {
 
         let subscriptions = vec![cx.subscribe_in(&input_state, window, {
             let input_state = input_state.clone();
-            move |this, _, ev: &InputEvent, _window, cx| match ev {
-                InputEvent::Change => {
+            move |this, _, ev: &InputEvent, _window, cx| {
+                if let InputEvent::Change = ev {
                     let value = input_state.read(cx).value();
                     let value: AppString = value.into();
 
@@ -46,17 +46,6 @@ impl SearchBar {
                     this.all_queries.push(value);
                     cx.notify();
                 }
-                InputEvent::PressEnter {
-                    secondary: _secondary,
-                } => {
-                    if let Some(app) = this.search_results.first() {
-                        this.search_engine
-                            .read(cx)
-                            .selected(this.all_queries.clone(), app);
-                        cx.notify();
-                    }
-                }
-                _ => {}
             }
         })];
 
