@@ -1612,14 +1612,12 @@ dependencies = [
 
 [[package]]
 name = "fetch"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
- "anyhow",
  "arcstr",
  "global-hotkey",
  "gpui",
  "gpui-component",
- "open",
  "rayon",
  "scc",
  "smappservice-rs",
@@ -2202,9 +2200,9 @@ dependencies = [
 
 [[package]]
 name = "gpui-component"
-version = "0.4.0-preview1"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "258630da9d39522115afa76af46880edd6448f46e77bb2b5f2fc24b3c27203a3"
+checksum = "637027625747c194c8bbcbc12965e5eac867c3ac38f20c3090c76cdcc0653214"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -2241,9 +2239,9 @@ dependencies = [
 
 [[package]]
 name = "gpui-component-macros"
-version = "0.4.0-preview1"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93b479a30e9cf9bbd767bf5deb4caf6b6d5dd703c7db9e3a7312a463082140a7"
+checksum = "440ef68055e212f31bb9a6662aa1e7aa52087c857b7f8db737b812d240582aa2"
 dependencies = [
  "proc-macro2",
  "quote",

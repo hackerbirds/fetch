@@ -18,7 +18,7 @@ pub mod ui;
 
 const APP_NAME: &str = "Fetch";
 
-actions!(actions_namespace, [OpenApp, EnterPressed, EscPressed]);
+actions!(fetch_actions, [OpenApp, EnterPressed, EscPressed]);
 
 fn main() {
     let manager = GlobalHotKeyManager::new().unwrap();
@@ -103,7 +103,7 @@ fn main() {
                     cx.open_window(window_options, |window, cx| {
                         let view = cx.new(|cx| SearchBar::new(window, cx, search_engine.clone()));
 
-                        cx.new(|cx| Root::new(view.into(), window, cx))
+                        cx.new(|cx| Root::new(view, window, cx))
                     })
                     .unwrap();
                 }
