@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use rayon::{
-    iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
+    iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelExtend, ParallelIterator},
     slice::ParallelSliceMut,
 };
 use scc::HashMap;
@@ -18,12 +18,14 @@ pub struct SearchEngine {
 
 impl SearchEngine {
     pub fn search(&self, query: &AppString) -> Vec<App> {
-        let mut filtered_apps: Vec<App> = self
-            .apps
-            .into_par_iter()
-            .filter(|app| self.is_query_substring_of_app_name(query, &app.name))
-            .cloned()
-            .collect();
+        let mut filtered_apps: Vec<App> = Vec::with_capacity(self.apps.len());
+
+        filtered_apps.par_extend(
+            self.apps
+                .into_par_iter()
+                .filter(|app| self.is_query_substring_of_app_name(query, &app.name))
+                .cloned(),
+        );
 
         filtered_apps.par_sort_by_cached_key(|app| {
             if query == &app.name {
