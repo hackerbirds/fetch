@@ -2,6 +2,8 @@ use std::{ffi::OsStr, fs::DirEntry, path::PathBuf};
 
 use crate::apps::App;
 
+pub type AppList = Box<[App]>;
+
 #[cfg(target_os = "macos")]
 const APPLICATION_DIRS: [&str; 5] = [
     "/Applications",
@@ -25,7 +27,7 @@ pub fn is_dir_entry_app(dir_entry: &DirEntry) -> bool {
     }
 }
 
-pub fn apps() -> Vec<App> {
+pub fn apps() -> AppList {
     let app_paths: Vec<PathBuf> = APPLICATION_DIRS
         .into_iter()
         .filter_map(|app_dir| std::fs::read_dir(app_dir).ok())
@@ -45,5 +47,6 @@ pub fn apps() -> Vec<App> {
             name: s.into(),
             path: p,
         })
-        .collect()
+        .collect::<Vec<App>>()
+        .into()
 }

@@ -1,4 +1,3 @@
-use crate::apps::fs::apps;
 use crate::search::SearchEngine;
 use crate::ui::search_bar::SearchBar;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
@@ -63,7 +62,7 @@ fn main() {
 
         cx.spawn(async move |cx| {
             let search_engine = cx
-                .new(|_cx| SearchEngine::build(apps()))
+                .new(|_cx| SearchEngine::build())
                 .expect("search engine builds");
 
             loop {

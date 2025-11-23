@@ -68,9 +68,10 @@ impl Render for SearchBar {
             .size_full()
             .items_center()
             .justify_center()
-            .on_action(|&EscPressed, window, _cx| {
+            .on_action(cx.listener(|this, &EscPressed, window, cx| {
                 window.remove_window();
-            })
+                this.search_engine.read(cx).update();
+            }))
             .on_action(cx.listener(|this, &EnterPressed, window, cx| {
                 if let Some(app) = this.search_results.first() {
                     cx.open_with_system(app.path.as_path());

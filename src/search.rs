@@ -1,31 +1,36 @@
-use std::sync::Arc;
+use std::sync::Mutex;
 
 use rayon::{
-    iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelExtend, ParallelIterator},
+    iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
     slice::ParallelSliceMut,
 };
 use scc::HashMap;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::apps::{App, AppName, app_string::AppString, app_substr::AppSubstr};
+use crate::apps::{
+    App, AppName,
+    app_string::AppString,
+    app_substr::AppSubstr,
+    fs::{AppList, apps},
+};
 
 #[derive(Debug, Default)]
 pub struct SearchEngine {
-    apps: Arc<[App]>,
+    apps: Mutex<AppList>,
     learned_substring_index: scc::HashMap<AppString, App>,
     substring_index: scc::HashMap<AppString, Vec<AppName>>,
 }
 
 impl SearchEngine {
     pub fn search(&self, query: &AppString) -> Vec<App> {
-        let mut filtered_apps: Vec<App> = Vec::with_capacity(self.apps.len());
+        #[allow(clippy::missing_panics_doc, reason = "Infallible mutex lock")]
+        let mut filtered_apps: Vec<App> =
+            self.apps.lock().expect("mutex lock can't poison").to_vec();
 
-        filtered_apps.par_extend(
-            self.apps
-                .into_par_iter()
-                .filter(|app| self.is_query_substring_of_app_name(query, &app.name))
-                .cloned(),
-        );
+        filtered_apps = filtered_apps
+            .into_par_iter()
+            .filter(|app| self.is_query_substring_of_app_name(query, &app.name))
+            .collect();
 
         filtered_apps.par_sort_by_cached_key(|app| {
             if query == &app.name {
@@ -56,31 +61,60 @@ impl SearchEngine {
                 .learned_substring_index
                 .upsert_sync(query, opened_app.clone());
         });
+
+        self.update();
+    }
+
+    /// If needed, update the search engine.
+    pub fn update(&self) {
+        // Check for modified apps, update if needed.
+        #[allow(clippy::missing_panics_doc, reason = "Infallible mutex lock")]
+        let mut current_apps = self.apps.lock().expect("mutex lock can't poison");
+        let new_apps = apps();
+        if current_apps.ne(&new_apps) {
+            let _ = std::mem::replace(&mut *current_apps, new_apps);
+
+            // Drop lock
+            drop(current_apps);
+            self.index_apps();
+        }
     }
 
     #[must_use]
-    pub fn build(mut apps: Vec<App>) -> Self {
+    pub fn build() -> Self {
+        let apps: AppList = apps();
         let substring_index: scc::HashMap<AppString, Vec<AppName>> = scc::HashMap::new();
 
-        apps.par_iter().for_each(|app| {
-            for n in 0..=app.name.grapheme_len() {
-                let substrings = substrings(&app.name, n);
-                for substr in substrings {
-                    substring_index
-                        .entry_sync(substr.into())
-                        .or_default()
-                        .push(app.name.clone());
-                }
-            }
-        });
-
-        apps.sort();
-
-        Self {
-            apps: apps.into(),
+        let engine = Self {
+            apps: Mutex::new(apps),
             learned_substring_index: HashMap::new(),
             substring_index,
-        }
+        };
+
+        engine.index_apps();
+
+        engine
+    }
+
+    #[inline]
+    /// Note: Grabs the Mutex lock. Don't call this while holding the self.apps lock
+    fn index_apps(&self) {
+        #[allow(clippy::missing_panics_doc, reason = "Infallible mutex lock")]
+        self.apps
+            .lock()
+            .expect("mutex lock can't poison")
+            .par_iter()
+            .for_each(|app| {
+                for n in 0..=app.name.grapheme_len() {
+                    let substrings = substrings(&app.name, n);
+                    for substr in substrings {
+                        self.substring_index
+                            .entry_sync(substr.into())
+                            .or_default()
+                            .push(app.name.clone());
+                    }
+                }
+            });
     }
 
     fn is_query_substring_of_app_name(&self, query: &AppString, app_name: &AppName) -> bool {
