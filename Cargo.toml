@@ -26,6 +26,7 @@ clippy = { pedantic = "deny" }
 
 [package.metadata.bundle]
 name = "Fetch"
+icon = ["icon.png", "icon@2x.png"]
 identifier = "org.birds.fetch"
 version = "0.2.0"
 category = "Developer Tool"

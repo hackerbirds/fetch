@@ -29,7 +29,14 @@ At this time there are no pre-packaged releases, so you will need to build the a
 You'll need `cargo bundle`:
 - `cargo install cargo-bundle`
 
-Then: `RUSTFLAGS='-C target-cpu=native' cargo bundle --release`
+Then run `bundle.sh`:
+
+```bash
+chmod +x bundle.sh
+./bundle.sh
+```
+
+Alternatively, run: `RUSTFLAGS='-C target-cpu=native' cargo bundle --release`
 
 ## Roadmap
 
