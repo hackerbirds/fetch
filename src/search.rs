@@ -27,6 +27,8 @@ impl SearchEngine {
         let mut filtered_apps: Vec<App> =
             self.apps.lock().expect("mutex lock can't poison").to_vec();
 
+        filtered_apps.par_sort_by_cached_key(|app| app.name.clone());
+
         filtered_apps = filtered_apps
             .into_par_iter()
             .filter(|app| self.is_query_substring_of_app_name(query, &app.name))
@@ -34,15 +36,17 @@ impl SearchEngine {
 
         filtered_apps.par_sort_by_cached_key(|app| {
             if query == &app.name {
-                0
+                (0, 0)
             } else {
-                beginning_distance(&query.substring(0, query.len()), &app.name)
-                    .overflowing_neg()
-                    .0
+                let (dist_name, dist_substring) =
+                    beginning_distance(&query.substring(0, query.len()), &app.name);
+
+                (
+                    dist_name.overflowing_neg().0,
+                    dist_substring.overflowing_neg().0,
+                )
             }
         });
-
-        filtered_apps.par_sort_by_cached_key(|app| app.name.clone());
 
         filtered_apps.par_sort_by_key(|app| {
             i32::from(
@@ -153,18 +157,18 @@ pub fn substrings(string: &str, n: usize) -> Vec<String> {
 /// Users are expected to search starting from the beginning of app name
 /// (For instance: "Ad" or "Ph" for "Adobe Photoshop")
 #[inline]
-fn beginning_distance(substr: &AppSubstr, name: &AppString) -> usize {
-    for word in name.split_ascii_whitespace() {
+fn beginning_distance(substr: &AppSubstr, name: &AppString) -> (usize, usize) {
+    for (i, word) in name.split_ascii_whitespace().enumerate() {
         let word_appstr = AppString::from(word);
-        for i in 0..word_appstr.len().saturating_sub(substr.len()) {
-            let name_substr = word_appstr.substring(i, substr.len());
+        for j in 0..word_appstr.len().saturating_sub(substr.len()) {
+            let name_substr = word_appstr.substring(j, substr.len());
             if substr == &name_substr {
-                return i;
+                return (i, j);
             }
         }
     }
 
-    name.len()
+    (0, name.len())
 }
 
 #[cfg(test)]
@@ -188,12 +192,12 @@ mod tests {
     #[test]
     fn test_substring_beginning_distance() {
         let test_app_name: AppString = "Adobe Photoshop".into();
-        assert_eq!(beginning_distance(&"Ado".into(), &test_app_name), 0);
-        assert_eq!(beginning_distance(&"ado".into(), &test_app_name), 0);
-        assert_eq!(beginning_distance(&"Pho".into(), &test_app_name), 0);
-        assert_eq!(beginning_distance(&"pho".into(), &test_app_name), 0);
-        assert_eq!(beginning_distance(&"dob".into(), &test_app_name), 1);
-        assert_eq!(beginning_distance(&"hot".into(), &test_app_name), 1);
-        assert_eq!(beginning_distance(&"oto".into(), &test_app_name), 2);
+        assert_eq!(beginning_distance(&"Ado".into(), &test_app_name), (0, 0));
+        assert_eq!(beginning_distance(&"ado".into(), &test_app_name), (0, 0));
+        assert_eq!(beginning_distance(&"Pho".into(), &test_app_name), (1, 0));
+        assert_eq!(beginning_distance(&"pho".into(), &test_app_name), (1, 0));
+        assert_eq!(beginning_distance(&"dob".into(), &test_app_name), (0, 1));
+        assert_eq!(beginning_distance(&"hot".into(), &test_app_name), (1, 1));
+        assert_eq!(beginning_distance(&"oto".into(), &test_app_name), (1, 2));
     }
 }
