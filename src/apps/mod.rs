@@ -1,14 +1,15 @@
 pub mod app_string;
 pub mod app_substr;
-pub mod fs;
 
 use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
 
 use self::app_string::AppString;
 
 pub type AppName = AppString;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct App {
     pub(crate) name: AppName,
     pub(crate) path: PathBuf,

@@ -27,6 +27,7 @@ pub fn is_dir_entry_app(dir_entry: &DirEntry) -> bool {
     }
 }
 
+#[inline]
 pub fn apps() -> AppList {
     let app_paths: Vec<PathBuf> = APPLICATION_DIRS
         .into_iter()

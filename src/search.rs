@@ -1,21 +1,23 @@
+use std::fmt::Debug;
 use std::sync::Mutex;
 
 use rayon::{
     iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
     slice::ParallelSliceMut,
 };
-use scc::HashMap;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::apps::{
-    App, AppName,
-    app_string::AppString,
-    app_substr::AppSubstr,
-    fs::{AppList, apps},
+use crate::{
+    apps::{App, AppName, app_string::AppString, app_substr::AppSubstr},
+    fs::{
+        apps::{AppList, apps},
+        db::{AppPersistence, FilesystemPersistence},
+    },
 };
 
 #[derive(Debug, Default)]
 pub struct SearchEngine {
+    db: Mutex<FilesystemPersistence>,
     apps: Mutex<AppList>,
     learned_substring_index: scc::HashMap<AppString, App>,
     substring_index: scc::HashMap<AppString, Vec<AppName>>,
@@ -66,6 +68,12 @@ impl SearchEngine {
                 .upsert_sync(query, opened_app.clone());
         });
 
+        #[allow(clippy::missing_panics_doc, reason = "Infallible mutex lock")]
+        self.db.lock().expect("mutex lock can't poison").save_data(
+            "learned_substring_index",
+            self.learned_substring_index.clone(),
+        );
+
         self.update();
     }
 
@@ -86,12 +94,16 @@ impl SearchEngine {
 
     #[must_use]
     pub fn build() -> Self {
+        let db = FilesystemPersistence::open();
         let apps: AppList = apps();
         let substring_index: scc::HashMap<AppString, Vec<AppName>> = scc::HashMap::new();
 
+        let learned_substring_index = db.get_data("learned_substring_index").unwrap_or_default();
+
         let engine = Self {
+            db: Mutex::new(db),
             apps: Mutex::new(apps),
-            learned_substring_index: HashMap::new(),
+            learned_substring_index,
             substring_index,
         };
 

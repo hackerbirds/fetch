@@ -2,14 +2,15 @@ use std::{fmt::Display, ops::Deref};
 
 use arcstr::ArcStr;
 use gpui::SharedString;
+use serde::{Deserialize, Serialize};
 use unicase::UniCase;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::apps::app_substr::AppSubstr;
 
 /// NOTE: Case insensitive, efficient representation of an immutable string
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct AppString(UniCase<ArcStr>);
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct AppString(#[serde(with = "unicase_serde::unicase")] UniCase<ArcStr>);
 
 impl Display for AppString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

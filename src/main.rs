@@ -1,3 +1,6 @@
+use std::str::FromStr;
+
+use crate::fs::config::Configuration;
 use crate::search::SearchEngine;
 use crate::ui::search_bar::SearchBar;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
@@ -6,12 +9,13 @@ use global_hotkey::{
     hotkey::{Code, HotKey, Modifiers},
 };
 use gpui::{
-    AppContext, Application, Bounds, Pixels, WindowBackgroundAppearance, WindowBounds, WindowKind,
-    WindowOptions, actions,
+    AppContext, Application, Bounds, Keystroke, Pixels, WindowBackgroundAppearance, WindowBounds,
+    WindowKind, WindowOptions, actions,
 };
 use gpui_component::Root;
 
 pub mod apps;
+pub mod fs;
 pub mod search;
 pub mod ui;
 
@@ -24,9 +28,9 @@ actions!(
 
 fn main() {
     let manager = GlobalHotKeyManager::new().unwrap();
+    let app_config = Configuration::default();
 
-    let hotkey = HotKey::new(Some(Modifiers::ALT), Code::Space);
-    manager.register(hotkey).unwrap();
+    manager.register(load_hotkey_config(&app_config)).unwrap();
 
     // Attempt to register app to auto-start on login
     if cfg!(target_os = "macos") {
@@ -57,6 +61,8 @@ fn main() {
         ]);
         // This must be called before using any GPUI Component features.
         gpui_component::init(cx);
+
+        cx.set_global(Configuration::default());
 
         let display_center = cx
             .primary_display()
@@ -114,4 +120,50 @@ fn main() {
         })
         .detach();
     });
+}
+
+fn load_hotkey_config(config: &Configuration) -> HotKey {
+    let parsed_global_hotkey =
+        Keystroke::parse(&config.open_search_hotkey).expect("Expected a valid keystroke");
+
+    let modifiers = {
+        let mut m = Modifiers::empty();
+        let gpui_m = parsed_global_hotkey.modifiers;
+
+        if gpui_m.alt {
+            m = m.union(Modifiers::ALT);
+        }
+        if gpui_m.control {
+            m = m.union(Modifiers::CONTROL);
+        }
+        if gpui_m.function {
+            m = m.union(Modifiers::FN);
+        }
+        if gpui_m.platform {
+            m = m.union(Modifiers::META);
+        }
+        if gpui_m.shift {
+            m = m.union(Modifiers::SHIFT);
+        }
+
+        m
+    };
+
+    let key_name = parsed_global_hotkey.key.clone();
+    let code = if key_name.is_empty() {
+        Code::Space
+    } else {
+        let key_name_uppercased: String = {
+            let mut c = key_name.chars();
+            match c.next() {
+                None => unreachable!("assert checks that key_name isn't empty"),
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+            }
+        };
+        Code::from_str(key_name_uppercased.as_str()).expect("Need a valid hotkey key")
+    };
+
+    debug_assert!(!modifiers.is_empty());
+
+    HotKey::new(Some(modifiers), code)
 }
