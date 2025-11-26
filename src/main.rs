@@ -33,7 +33,7 @@ fn main() {
     manager.register(load_hotkey_config(&app_config)).unwrap();
 
     // Attempt to register app to auto-start on login
-    if cfg!(target_os = "macos") {
+    if cfg!(target_os = "macos") && app_config.launch_on_boot {
         use smappservice_rs::{AppService, ServiceStatus, ServiceType};
 
         let app_service = AppService::new(ServiceType::MainApp);

@@ -24,7 +24,7 @@ Currently only supports macOS. It is still a WIP but basic functionality is impl
 
 ## Build It Yourself
 
-At this time there are no pre-packaged releases, so you will need to build the app yourself.
+At this time there are no pre-packaged releases, so you will need to build the app yourself. Feel free to edit basic configuration (such as Hotkey) in `src/fs/config.rs` before compiling.
 
 You'll need `cargo bundle`:
 - `cargo install cargo-bundle`

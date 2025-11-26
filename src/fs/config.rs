@@ -1,6 +1,8 @@
 use gpui::Global;
 use serde::{Deserialize, Serialize};
 
+const DEFAULT_HOTKEY: &str = "alt-space";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Configuration {
     pub open_search_hotkey: HotkeyString,
@@ -18,7 +20,7 @@ pub type HotkeyString = String;
 impl Default for Configuration {
     fn default() -> Self {
         Self {
-            open_search_hotkey: "alt-space".to_string(),
+            open_search_hotkey: DEFAULT_HOTKEY.to_string(),
             launch_on_boot: true,
         }
     }
