@@ -80,15 +80,17 @@ impl Render for SearchBar {
             }))
             .on_action(cx.listener(|this, &EscPressed, window, cx| {
                 window.remove_window();
-                this.search_engine.read(cx).update();
+                this.search_engine.update(cx, |search_engine, _cx| {
+                    search_engine.update();
+                });
                 cx.notify();
             }))
             .on_action(cx.listener(|this, &EnterPressed, window, cx| {
                 if let Some(app) = this.search_results.get(this.selected_result) {
                     cx.open_with_system(app.path.as_path());
-                    this.search_engine
-                        .read(cx)
-                        .selected(this.all_queries.clone(), app);
+                    this.search_engine.update(cx, |search_engine, _cx| {
+                        search_engine.selected(this.all_queries.clone(), app);
+                    });
                     window.remove_window();
                 }
                 cx.notify();

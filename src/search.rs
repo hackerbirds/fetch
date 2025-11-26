@@ -1,10 +1,10 @@
 use std::fmt::Debug;
-use std::sync::Mutex;
 
 use rayon::{
     iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
     slice::ParallelSliceMut,
 };
+use scc::HashMap;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
@@ -17,17 +17,15 @@ use crate::{
 
 #[derive(Debug, Default)]
 pub struct SearchEngine {
-    db: Mutex<FilesystemPersistence>,
-    apps: Mutex<AppList>,
-    learned_substring_index: scc::HashMap<AppString, App>,
-    substring_index: scc::HashMap<AppString, Vec<AppName>>,
+    db: FilesystemPersistence,
+    apps: AppList,
+    learned_substring_index: HashMap<AppString, App>,
+    substring_index: HashMap<AppString, Vec<AppName>>,
 }
 
 impl SearchEngine {
     pub fn search(&self, query: &AppString) -> Vec<App> {
-        #[allow(clippy::missing_panics_doc, reason = "Infallible mutex lock")]
-        let mut filtered_apps: Vec<App> =
-            self.apps.lock().expect("mutex lock can't poison").to_vec();
+        let mut filtered_apps: Vec<App> = self.apps.to_vec();
 
         filtered_apps.par_sort_by_cached_key(|app| app.name.clone());
 
@@ -61,15 +59,14 @@ impl SearchEngine {
         filtered_apps
     }
 
-    pub fn selected(&self, query_history: Vec<AppName>, opened_app: &App) {
+    pub fn selected(&mut self, query_history: Vec<AppName>, opened_app: &App) {
         query_history.into_par_iter().for_each(|query| {
             let _ = self
                 .learned_substring_index
                 .upsert_sync(query, opened_app.clone());
         });
 
-        #[allow(clippy::missing_panics_doc, reason = "Infallible mutex lock")]
-        self.db.lock().expect("mutex lock can't poison").save_data(
+        self.db.save_data(
             "learned_substring_index",
             self.learned_substring_index.clone(),
         );
@@ -78,16 +75,13 @@ impl SearchEngine {
     }
 
     /// If needed, update the search engine.
-    pub fn update(&self) {
+    pub fn update(&mut self) {
         // Check for modified apps, update if needed.
-        #[allow(clippy::missing_panics_doc, reason = "Infallible mutex lock")]
-        let mut current_apps = self.apps.lock().expect("mutex lock can't poison");
+        let current_apps = &mut self.apps;
         let new_apps = apps();
-        if current_apps.ne(&new_apps) {
-            let _ = std::mem::replace(&mut *current_apps, new_apps);
+        if new_apps.ne(current_apps) {
+            let _ = std::mem::replace(current_apps, new_apps);
 
-            // Drop lock
-            drop(current_apps);
             self.index_apps();
         }
     }
@@ -100,9 +94,9 @@ impl SearchEngine {
 
         let learned_substring_index = db.get_data("learned_substring_index").unwrap_or_default();
 
-        let engine = Self {
-            db: Mutex::new(db),
-            apps: Mutex::new(apps),
+        let mut engine = Self {
+            db,
+            apps,
             learned_substring_index,
             substring_index,
         };
@@ -113,26 +107,21 @@ impl SearchEngine {
     }
 
     #[inline]
-    /// Note: Grabs the Mutex lock. Don't call this while holding the self.apps lock
-    fn index_apps(&self) {
-        #[allow(clippy::missing_panics_doc, reason = "Infallible mutex lock")]
-        self.apps
-            .lock()
-            .expect("mutex lock can't poison")
-            .par_iter()
-            .for_each(|app| {
-                for n in 0..=app.name.grapheme_len() {
-                    let substrings = substrings(&app.name, n);
-                    for substr in substrings {
-                        self.substring_index
-                            .entry_sync(substr.into())
-                            .or_default()
-                            .push(app.name.clone());
-                    }
+    fn index_apps(&mut self) {
+        self.apps.par_iter().for_each(|app| {
+            for n in 0..=app.name.grapheme_len() {
+                let substrings = substrings(&app.name, n);
+                for substr in substrings {
+                    self.substring_index
+                        .entry_sync(substr.into())
+                        .or_default()
+                        .push(app.name.clone());
                 }
-            });
+            }
+        });
     }
 
+    #[inline]
     fn is_query_substring_of_app_name(&self, query: &AppString, app_name: &AppName) -> bool {
         let Some(res) = self.substring_index.get_sync(query) else {
             return false;
