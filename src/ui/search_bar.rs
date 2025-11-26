@@ -8,7 +8,7 @@ use gpui_component::{ActiveTheme, StyledExt};
 use crate::apps::app_string::AppString;
 use crate::search::SearchEngine;
 use crate::ui::search_results::SearchResultsList;
-use crate::{EnterPressed, EscPressed};
+use crate::{EnterPressed, EscPressed, TabSelectApp};
 
 pub struct SearchBar {
     search_engine: Entity<SearchEngine>,
@@ -17,6 +17,7 @@ pub struct SearchBar {
     search_results: Vec<crate::apps::App>,
     #[expect(unused)]
     subscriptions: Vec<Subscription>,
+    selected_result: usize,
 }
 
 impl SearchBar {
@@ -42,6 +43,7 @@ impl SearchBar {
                     let value: AppString = value.into();
 
                     this.search_results = this.search_engine.read(cx).search(&value);
+                    this.selected_result = 0;
 
                     this.all_queries.push(value);
                     cx.notify();
@@ -55,6 +57,7 @@ impl SearchBar {
             all_queries,
             search_results,
             subscriptions,
+            selected_result: 0,
         }
     }
 }
@@ -68,18 +71,27 @@ impl Render for SearchBar {
             .size_full()
             .items_center()
             .justify_center()
+            .on_action(cx.listener(|this, &TabSelectApp, _, cx| {
+                if !this.search_results.is_empty() {
+                    this.selected_result =
+                        (this.selected_result + 1).rem_euclid(this.search_results.len());
+                }
+                cx.notify();
+            }))
             .on_action(cx.listener(|this, &EscPressed, window, cx| {
                 window.remove_window();
                 this.search_engine.read(cx).update();
+                cx.notify();
             }))
             .on_action(cx.listener(|this, &EnterPressed, window, cx| {
-                if let Some(app) = this.search_results.first() {
+                if let Some(app) = this.search_results.get(this.selected_result) {
                     cx.open_with_system(app.path.as_path());
                     this.search_engine
                         .read(cx)
                         .selected(this.all_queries.clone(), app);
                     window.remove_window();
                 }
+                cx.notify();
             }))
             .child(
                 Input::new(&self.input_state)
@@ -95,7 +107,9 @@ impl Render for SearchBar {
                     .gap_2()
                     .size_full()
                     .overflow_y_hidden()
-                    .child(cx.new(|_cx| SearchResultsList::new(self.search_results.clone()))),
+                    .child(cx.new(|_cx| {
+                        SearchResultsList::new(self.search_results.clone(), self.selected_result)
+                    })),
             )
     }
 }

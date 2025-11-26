@@ -17,7 +17,10 @@ pub mod ui;
 
 const APP_NAME: &str = "Fetch";
 
-actions!(fetch_actions, [OpenApp, EnterPressed, EscPressed]);
+actions!(
+    fetch_actions,
+    [OpenApp, EnterPressed, EscPressed, TabSelectApp]
+);
 
 fn main() {
     let manager = GlobalHotKeyManager::new().unwrap();
@@ -50,6 +53,7 @@ fn main() {
             gpui::KeyBinding::new("alt", OpenApp, None),
             gpui::KeyBinding::new("enter", EnterPressed, None),
             gpui::KeyBinding::new("escape", EscPressed, None),
+            gpui::KeyBinding::new("tab", TabSelectApp, None),
         ]);
         // This must be called before using any GPUI Component features.
         gpui_component::init(cx);
