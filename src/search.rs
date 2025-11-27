@@ -1,10 +1,15 @@
-use std::fmt::Debug;
+use std::{
+    fmt::Debug,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
+use gpui::AsyncApp;
 use rayon::{
     iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
     slice::ParallelSliceMut,
 };
 use scc::HashMap;
+use tokio::sync::watch::{Receiver, Sender, channel};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
@@ -15,16 +20,38 @@ use crate::{
     },
 };
 
-#[derive(Debug, Default)]
-pub struct SearchEngine {
+#[derive(Debug)]
+pub struct DeterministicSearchEngine {
     db: FilesystemPersistence,
     apps: AppList,
     learned_substring_index: HashMap<AppString, App>,
     substring_index: HashMap<AppString, Vec<AppName>>,
+
+    /// Keeps track of the latest search query.
+    /// The higher that number is, the more recent
+    /// the query is.
+    /// Used by receivers to detect when a new
+    /// search was started on a different thread,
+    /// in which case old results (with smaller tokens)
+    /// should be discarded
+    deferred_token: AtomicUsize,
+    deferred_watcher: Sender<(usize, Vec<App>)>,
 }
 
-impl SearchEngine {
-    pub fn search(&self, query: &AppString) -> Vec<App> {
+pub trait SearchEngine {
+    fn blocking_search(&self, query: &AppString) -> Vec<App>;
+    fn deferred_search(
+        &self,
+        cx: &mut AsyncApp,
+        query: &AppString,
+    ) -> (usize, Receiver<(usize, Vec<App>)>);
+    fn selected(&mut self, query_history: Vec<AppName>, opened_app: &App);
+    /// If needed, update the search engine.
+    fn update(&mut self);
+}
+
+impl SearchEngine for DeterministicSearchEngine {
+    fn blocking_search(&self, query: &AppString) -> Vec<App> {
         let mut filtered_apps: Vec<App> = self.apps.to_vec();
 
         filtered_apps.par_sort_by_cached_key(|app| app.name.clone());
@@ -59,7 +86,45 @@ impl SearchEngine {
         filtered_apps
     }
 
-    pub fn selected(&mut self, query_history: Vec<AppName>, opened_app: &App) {
+    fn deferred_search(
+        &self,
+        cx: &mut AsyncApp,
+        query: &AppString,
+    ) -> (usize, Receiver<(usize, Vec<App>)>) {
+        if cfg!(debug_assertions) {
+            // Debug build code. Sends results back one by one for testing purposes :@)
+            let tx = self.deferred_watcher.clone();
+            let rx = tx.subscribe();
+            let token = self.deferred_token.fetch_add(1, Ordering::Acquire);
+            tx.send_replace((token, vec![]));
+
+            let res = self.blocking_search(query);
+
+            cx.background_executor()
+                .spawn(async move {
+                    for entry in res {
+                        tx.send_modify(|(w_token, vec)| {
+                            if token == *w_token {
+                                vec.push(entry);
+                            }
+                        });
+                    }
+                })
+                .detach();
+
+            (token, rx)
+        } else {
+            // Release build. Immediately send result back
+            let tx = self.deferred_watcher.clone();
+            let rx = tx.subscribe();
+            let token = self.deferred_token.fetch_add(1, Ordering::Acquire);
+            let res = self.blocking_search(query);
+            tx.send_replace((token, res));
+            (token, rx)
+        }
+    }
+
+    fn selected(&mut self, query_history: Vec<AppName>, opened_app: &App) {
         query_history.into_par_iter().for_each(|query| {
             let _ = self
                 .learned_substring_index
@@ -74,8 +139,8 @@ impl SearchEngine {
         self.update();
     }
 
-    /// If needed, update the search engine.
-    pub fn update(&mut self) {
+    fn update(&mut self) {
+        self.deferred_token.store(0, Ordering::Release);
         // Check for modified apps, update if needed.
         let current_apps = &mut self.apps;
         let new_apps = apps();
@@ -85,7 +150,9 @@ impl SearchEngine {
             self.index_apps();
         }
     }
+}
 
+impl DeterministicSearchEngine {
     #[must_use]
     pub fn build() -> Self {
         let db = FilesystemPersistence::open();
@@ -94,11 +161,14 @@ impl SearchEngine {
 
         let learned_substring_index = db.get_data("learned_substring_index").unwrap_or_default();
 
+        let (tx, _rx) = channel((0, vec![]));
         let mut engine = Self {
             db,
             apps,
             learned_substring_index,
             substring_index,
+            deferred_token: AtomicUsize::new(0),
+            deferred_watcher: tx,
         };
 
         engine.index_apps();

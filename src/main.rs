@@ -1,8 +1,9 @@
 use std::str::FromStr;
 
 use crate::fs::config::Configuration;
-use crate::search::SearchEngine;
+use crate::search::DeterministicSearchEngine;
 use crate::ui::search_bar::SearchBar;
+use crate::ui::search_engine::GpuiSearchEngine;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
 use global_hotkey::{
     GlobalHotKeyManager,
@@ -71,9 +72,10 @@ fn main() {
             .center();
 
         cx.spawn(async move |cx| {
-            let search_engine = cx
-                .new(|_cx| SearchEngine::build())
-                .expect("search engine builds");
+            let search_engine = DeterministicSearchEngine::build();
+            let search_engine_entity = cx
+                .new(|_cx| GpuiSearchEngine::new(search_engine))
+                .expect("Search engine building is infallible");
 
             loop {
                 // Await hotkey
@@ -110,7 +112,8 @@ fn main() {
                     };
 
                     cx.open_window(window_options, |window, cx| {
-                        let view = cx.new(|cx| SearchBar::new(window, cx, search_engine.clone()));
+                        let view =
+                            cx.new(|cx| SearchBar::new(window, cx, search_engine_entity.clone()));
 
                         cx.new(|cx| Root::new(view, window, cx))
                     })

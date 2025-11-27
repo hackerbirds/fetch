@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "Fetch"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "arcstr",
  "dirs 6.0.0",
@@ -16,6 +16,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smappservice-rs",
+ "tokio",
  "unicase",
  "unicase_serde",
  "unicode-segmentation",

@@ -6,15 +6,14 @@ use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{ActiveTheme, StyledExt};
 
 use crate::apps::app_string::AppString;
-use crate::search::SearchEngine;
+use crate::ui::search_engine::GpuiSearchEngine;
 use crate::ui::search_results::SearchResultsList;
 use crate::{EnterPressed, EscPressed, TabSelectApp};
 
 pub struct SearchBar {
-    search_engine: Entity<SearchEngine>,
+    search_engine: Entity<GpuiSearchEngine>,
     input_state: Entity<InputState>,
     all_queries: Vec<AppString>,
-    search_results: Vec<crate::apps::App>,
     #[expect(unused)]
     subscriptions: Vec<Subscription>,
     selected_result: usize,
@@ -24,7 +23,7 @@ impl SearchBar {
     pub fn new(
         window: &mut Window,
         cx: &mut Context<Self>,
-        search_engine: Entity<SearchEngine>,
+        search_engine: Entity<GpuiSearchEngine>,
     ) -> Self {
         let input_state = cx.new(|cx| {
             let is = InputState::new(window, cx).placeholder("Search app");
@@ -32,17 +31,17 @@ impl SearchBar {
             is
         });
 
-        let search_results = vec![];
         let all_queries = vec![];
 
         let subscriptions = vec![cx.subscribe_in(&input_state, window, {
             let input_state = input_state.clone();
-            move |this, _, ev: &InputEvent, _window, cx| {
+            move |this, _, ev: &InputEvent, window, cx| {
                 if let InputEvent::Change = ev {
                     let value = input_state.read(cx).value();
                     let value: AppString = value.into();
 
-                    this.search_results = this.search_engine.read(cx).search(&value);
+                    this.search_engine
+                        .update(cx, |this, cx| this.deferred_search(&value, cx, window));
                     this.selected_result = 0;
 
                     this.all_queries.push(value);
@@ -55,7 +54,6 @@ impl SearchBar {
             search_engine,
             input_state,
             all_queries,
-            search_results,
             subscriptions,
             selected_result: 0,
         }
@@ -72,9 +70,10 @@ impl Render for SearchBar {
             .items_center()
             .justify_center()
             .on_action(cx.listener(|this, &TabSelectApp, _, cx| {
-                if !this.search_results.is_empty() {
+                let search_results = &this.search_engine.read(cx).results;
+                if !search_results.is_empty() {
                     this.selected_result =
-                        (this.selected_result + 1).rem_euclid(this.search_results.len());
+                        (this.selected_result + 1).rem_euclid(search_results.len());
                 }
                 cx.notify();
             }))
@@ -86,10 +85,16 @@ impl Render for SearchBar {
                 cx.notify();
             }))
             .on_action(cx.listener(|this, &EnterPressed, window, cx| {
-                if let Some(app) = this.search_results.get(this.selected_result) {
+                let app_opt = this
+                    .search_engine
+                    .read(cx)
+                    .results
+                    .get(this.selected_result)
+                    .cloned();
+                if let Some(app) = app_opt {
                     cx.open_with_system(app.path.as_path());
                     this.search_engine.update(cx, |search_engine, _cx| {
-                        search_engine.selected(this.all_queries.clone(), app);
+                        search_engine.selected(this.all_queries.clone(), &app);
                     });
                     window.remove_window();
                 }
@@ -109,8 +114,9 @@ impl Render for SearchBar {
                     .gap_2()
                     .size_full()
                     .overflow_y_hidden()
-                    .child(cx.new(|_cx| {
-                        SearchResultsList::new(self.search_results.clone(), self.selected_result)
+                    .child(cx.new(|cx| {
+                        let search_results = self.search_engine.read(cx).results.clone();
+                        SearchResultsList::new(search_results, self.selected_result)
                     })),
             )
     }
