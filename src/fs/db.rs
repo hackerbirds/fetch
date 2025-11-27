@@ -1,7 +1,7 @@
 //! Not really a "database", naive use of filesystem is good enough
 //! for our use case
 
-use std::{fs::File, io::Write};
+use std::{fs::File, io::Write, os::unix::fs::FileExt};
 
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
@@ -71,7 +71,7 @@ impl FilesystemPersistence {
             .read(true)
             .write(true)
             .create(true)
-            .truncate(true)
+            .truncate(false)
             .open(config_file_path)
             .expect("TODO (file opens)");
 
@@ -79,7 +79,7 @@ impl FilesystemPersistence {
             .read(true)
             .write(true)
             .create(true)
-            .truncate(true)
+            .truncate(false)
             .open(data_file_path)
             .expect("TODO (file opens)");
 
@@ -119,7 +119,7 @@ impl AppPersistence for FilesystemPersistence {
             map.insert(json_key.to_string(), json_value);
 
             self.data_file
-                .write_all(serde_json::to_vec(&generic_json).unwrap().as_ref())
+                .write_all_at(serde_json::to_vec(&generic_json).unwrap().as_ref(), 0)
                 .unwrap();
         }
     }
