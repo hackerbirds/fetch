@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
+use crate::extensions::deterministic_search::DeterministicSearchEngine;
 use crate::fs::config::Configuration;
-use crate::search::DeterministicSearchEngine;
 use crate::ui::search_bar::SearchBar;
 use crate::ui::search_engine::GpuiSearchEngine;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
@@ -16,8 +16,8 @@ use gpui::{
 use gpui_component::Root;
 
 pub mod apps;
+pub mod extensions;
 pub mod fs;
-pub mod search;
 pub mod ui;
 
 const APP_NAME: &str = "Fetch";

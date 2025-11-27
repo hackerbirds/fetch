@@ -9,11 +9,12 @@ use rayon::{
     slice::ParallelSliceMut,
 };
 use scc::HashMap;
-use tokio::sync::watch::{Receiver, Sender, channel};
+use tokio::sync::watch::channel;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     apps::{App, AppName, app_string::AppString, app_substr::AppSubstr},
+    extensions::{DeferredReceiver, DeferredSender, DeferredToken, SearchEngine},
     fs::{
         apps::{AppList, apps},
         db::{AppPersistence, FilesystemPersistence},
@@ -35,19 +36,7 @@ pub struct DeterministicSearchEngine {
     /// in which case old results (with smaller tokens)
     /// should be discarded
     deferred_token: AtomicUsize,
-    deferred_watcher: Sender<(usize, Vec<App>)>,
-}
-
-pub trait SearchEngine {
-    fn blocking_search(&self, query: &AppString) -> Vec<App>;
-    fn deferred_search(
-        &self,
-        cx: &mut AsyncApp,
-        query: &AppString,
-    ) -> (usize, Receiver<(usize, Vec<App>)>);
-    fn selected(&mut self, query_history: Vec<AppName>, opened_app: &App);
-    /// If needed, update the search engine.
-    fn update(&mut self);
+    deferred_watcher: DeferredSender,
 }
 
 impl SearchEngine for DeterministicSearchEngine {
@@ -90,7 +79,7 @@ impl SearchEngine for DeterministicSearchEngine {
         &self,
         cx: &mut AsyncApp,
         query: &AppString,
-    ) -> (usize, Receiver<(usize, Vec<App>)>) {
+    ) -> (DeferredToken, DeferredReceiver) {
         if cfg!(debug_assertions) {
             // Debug build code. Sends results back one by one for testing purposes :@)
             let tx = self.deferred_watcher.clone();

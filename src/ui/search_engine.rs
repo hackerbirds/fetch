@@ -8,7 +8,7 @@ use gpui::{Entity, EventEmitter};
 
 use crate::{
     apps::{App, app_string::AppString},
-    search::SearchEngine,
+    extensions::{DeferredReceiver, DeferredToken, SearchEngine},
 };
 
 pub enum SearchEvent {
@@ -18,7 +18,6 @@ pub enum SearchEvent {
 type SearchEngineDyn = Box<dyn SearchEngine>;
 pub struct GpuiSearchEngine {
     pub results: Vec<App>,
-    pub current_query: AppString,
     engine: SearchEngineDyn,
 }
 
@@ -28,7 +27,6 @@ impl GpuiSearchEngine {
     pub fn new(search_engine: impl SearchEngine + 'static) -> Self {
         Self {
             results: Vec::new(),
-            current_query: AppString::default(),
             engine: Box::new(search_engine),
         }
     }
@@ -44,8 +42,9 @@ impl GpuiSearchEngine {
         cx: &mut gpui::Context<'_, Self>,
         window: &gpui::Window,
     ) {
-        let (token, mut rx) = self.engine.deferred_search(&mut cx.to_async(), query);
-        self.current_query = query.clone();
+        let (token, mut rx): (DeferredToken, DeferredReceiver) =
+            self.engine.deferred_search(&mut cx.to_async(), query);
+
         cx.spawn_in(window, async move |w, cx| {
             loop {
                 if rx.changed().await.is_err() {
@@ -53,7 +52,7 @@ impl GpuiSearchEngine {
                     return;
                 }
 
-                let search_token = rx.borrow().0;
+                let search_token: DeferredToken = rx.borrow().0;
                 if search_token > token {
                     // New search executed on a different task,
                     // abort this one
