@@ -31,21 +31,23 @@ impl GpuiSearchEngine {
         }
     }
 
-    pub fn blocking_search(&mut self, query: &AppString, cx: &mut gpui::Context<'_, Self>) {
+    pub fn blocking_search(&mut self, query: AppString, cx: &mut gpui::Context<'_, Self>) {
         thread::sleep(Duration::from_secs(1));
         cx.emit(SearchEvent::Results(self.engine.blocking_search(query)));
     }
 
     pub fn deferred_search(
         &mut self,
-        query: &AppString,
+        query: AppString,
         cx: &mut gpui::Context<'_, Self>,
         window: &gpui::Window,
     ) {
-        let (token, mut rx): (DeferredToken, DeferredReceiver) =
-            self.engine.deferred_search(&mut cx.to_async(), query);
-
         cx.spawn_in(window, async move |w, cx| {
+            #[allow(clippy::missing_panics_doc, reason = "entity has not been released")]
+            let (token, mut rx): (DeferredToken, DeferredReceiver) = w
+                .read_with(cx, |this, _cx| this.engine.deferred_search(query.clone()))
+                .expect("entity has not been released");
+
             loop {
                 if rx.changed().await.is_err() {
                     // Closed rx, abort.

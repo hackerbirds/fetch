@@ -7,7 +7,6 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use gpui::AsyncApp;
 use rayon::{
     iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
     slice::ParallelSliceMut,
@@ -44,18 +43,18 @@ pub struct DeterministicSearchEngine {
 }
 
 impl SearchEngine for DeterministicSearchEngine {
-    fn blocking_search(&self, query: &AppString) -> Vec<App> {
+    fn blocking_search(&self, query: AppString) -> Vec<App> {
         let mut filtered_apps: Vec<App> = self.apps.to_vec();
 
         filtered_apps.par_sort_by_cached_key(|app| app.name.clone());
 
         filtered_apps = filtered_apps
             .into_par_iter()
-            .filter(|app| self.is_query_substring_of_app_name(query, &app.name))
+            .filter(|app| self.is_query_substring_of_app_name(&query, &app.name))
             .collect();
 
         filtered_apps.par_sort_by_cached_key(|app| {
-            if query == &app.name {
+            if query == app.name {
                 (0, 0)
             } else {
                 let (dist_name, dist_substring) =
@@ -71,7 +70,7 @@ impl SearchEngine for DeterministicSearchEngine {
         filtered_apps.par_sort_by_key(|app| {
             i32::from(
                 self.learned_substring_index
-                    .get_sync(query)
+                    .get_sync(&query)
                     .is_none_or(|s| s.get().name != app.name),
             )
         });
@@ -81,11 +80,7 @@ impl SearchEngine for DeterministicSearchEngine {
 
     // Debug build code. Sends results back one by one for testing purposes :@)
     #[cfg(debug_assertions)]
-    fn deferred_search(
-        &self,
-        cx: &mut AsyncApp,
-        query: &AppString,
-    ) -> (DeferredToken, DeferredReceiver) {
+    fn deferred_search(&self, query: AppString) -> (DeferredToken, DeferredReceiver) {
         let tx = self.deferred_watcher.clone();
         let rx = tx.subscribe();
         let token = self.deferred_token.fetch_add(1, Ordering::Acquire);
@@ -93,18 +88,13 @@ impl SearchEngine for DeterministicSearchEngine {
 
         let res = self.blocking_search(query);
 
-        cx.background_executor()
-            .spawn(async move {
-                for entry in res {
-                    tx.send_modify(|(w_token, vec)| {
-                        if token == *w_token {
-                            vec.push(entry);
-                        }
-                    });
+        for entry in res {
+            tx.send_modify(|(w_token, vec)| {
+                if token == *w_token {
+                    vec.push(entry);
                 }
-            })
-            .detach();
-
+            });
+        }
         (token, rx)
     }
 

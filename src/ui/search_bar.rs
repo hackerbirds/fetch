@@ -40,8 +40,9 @@ impl SearchBar {
                     let value = input_state.read(cx).value();
                     let value: AppString = value.into();
 
-                    this.search_engine
-                        .update(cx, |this, cx| this.deferred_search(&value, cx, window));
+                    this.search_engine.update(cx, |this, cx| {
+                        this.deferred_search(value.clone(), cx, window);
+                    });
                     this.selected_result = 0;
 
                     this.all_queries.push(value);
