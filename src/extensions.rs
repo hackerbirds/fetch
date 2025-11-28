@@ -1,5 +1,5 @@
 use gpui::AsyncApp;
-use tokio::sync::watch::{Receiver, Sender};
+use tokio::sync::watch::{self, Receiver, Sender};
 
 pub mod deterministic_search;
 
@@ -14,9 +14,13 @@ pub trait SearchEngine {
     fn blocking_search(&self, query: &AppString) -> Vec<App>;
     fn deferred_search(
         &self,
-        cx: &mut AsyncApp,
+        _cx: &mut AsyncApp,
         query: &AppString,
-    ) -> (DeferredToken, DeferredReceiver);
+    ) -> (DeferredToken, DeferredReceiver) {
+        let res = self.blocking_search(query);
+        let (_tx, rx) = watch::channel((0, res));
+        (0, rx)
+    }
     fn selected(&mut self, query_history: Vec<AppName>, opened_app: &App);
     /// If needed, update the search engine.
     fn update(&mut self);

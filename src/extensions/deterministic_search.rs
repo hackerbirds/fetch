@@ -1,3 +1,7 @@
+// Temporary hack: Allow dead deferred code warning in release build
+#![cfg_attr(not(debug_assertions), allow(dead_code))]
+#![cfg_attr(not(debug_assertions), allow(unused_imports))]
+
 use std::{
     fmt::Debug,
     sync::atomic::{AtomicUsize, Ordering},
@@ -75,42 +79,33 @@ impl SearchEngine for DeterministicSearchEngine {
         filtered_apps
     }
 
+    // Debug build code. Sends results back one by one for testing purposes :@)
+    #[cfg(debug_assertions)]
     fn deferred_search(
         &self,
         cx: &mut AsyncApp,
         query: &AppString,
     ) -> (DeferredToken, DeferredReceiver) {
-        if cfg!(debug_assertions) {
-            // Debug build code. Sends results back one by one for testing purposes :@)
-            let tx = self.deferred_watcher.clone();
-            let rx = tx.subscribe();
-            let token = self.deferred_token.fetch_add(1, Ordering::Acquire);
-            tx.send_replace((token, vec![]));
+        let tx = self.deferred_watcher.clone();
+        let rx = tx.subscribe();
+        let token = self.deferred_token.fetch_add(1, Ordering::Acquire);
+        tx.send_replace((token, vec![]));
 
-            let res = self.blocking_search(query);
+        let res = self.blocking_search(query);
 
-            cx.background_executor()
-                .spawn(async move {
-                    for entry in res {
-                        tx.send_modify(|(w_token, vec)| {
-                            if token == *w_token {
-                                vec.push(entry);
-                            }
-                        });
-                    }
-                })
-                .detach();
+        cx.background_executor()
+            .spawn(async move {
+                for entry in res {
+                    tx.send_modify(|(w_token, vec)| {
+                        if token == *w_token {
+                            vec.push(entry);
+                        }
+                    });
+                }
+            })
+            .detach();
 
-            (token, rx)
-        } else {
-            // Release build. Immediately send result back
-            let tx = self.deferred_watcher.clone();
-            let rx = tx.subscribe();
-            let token = self.deferred_token.fetch_add(1, Ordering::Acquire);
-            let res = self.blocking_search(query);
-            tx.send_replace((token, res));
-            (token, rx)
-        }
+        (token, rx)
     }
 
     fn selected(&mut self, query_history: Vec<AppName>, opened_app: &App) {
