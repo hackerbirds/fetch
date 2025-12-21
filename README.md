@@ -14,6 +14,10 @@ Currently only supports macOS. It is still a WIP but basic functionality is impl
 - Press enter to launch the first result
 - Otherwise click the entry with your cursor
 
+### Configuring the app
+
+While the search bar is active, press Cmd+T to open the configuration file. The app requires a restart to update its configuration.
+
 ## Features
 
 - It's really fast. App launches instantly. Searches happen instantly.

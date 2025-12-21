@@ -1,16 +1,12 @@
 //! Not really a "database", naive use of filesystem is good enough
 //! for our use case
 
-use std::{fs::File, io::Write, os::unix::fs::FileExt};
+use std::{fs::File, os::unix::fs::FileExt};
 
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 
-use crate::fs::config::Configuration;
-
 pub trait AppPersistence {
-    fn get_configuration(&self) -> Configuration;
-    fn save_configuration(&mut self, config: &Configuration);
     #[allow(
         clippy::missing_errors_doc,
         clippy::result_unit_err,
@@ -31,7 +27,6 @@ pub trait AppPersistence {
 ///    affecting performance
 #[derive(Debug)]
 pub struct FilesystemPersistence {
-    config_file: File,
     data_file: File,
 }
 
@@ -53,27 +48,12 @@ impl FilesystemPersistence {
         // TODO: Error handle permissions
         let _ = std::fs::create_dir(&fetch_app_dir);
 
-        let config_file_path = {
-            let mut path = fetch_app_dir.clone();
-            path.push("config.json");
-
-            path
-        };
-
         let data_file_path = {
             let mut path = fetch_app_dir.clone();
             path.push("data.json");
 
             path
         };
-
-        let config_file = File::options()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(config_file_path)
-            .expect("TODO (file opens)");
 
         let data_file = File::options()
             .read(true)
@@ -83,24 +63,11 @@ impl FilesystemPersistence {
             .open(data_file_path)
             .expect("TODO (file opens)");
 
-        Self {
-            config_file,
-            data_file,
-        }
+        Self { data_file }
     }
 }
 
 impl AppPersistence for FilesystemPersistence {
-    fn get_configuration(&self) -> Configuration {
-        serde_json::from_reader(&self.config_file).unwrap_or_default()
-    }
-
-    fn save_configuration(&mut self, config: &Configuration) {
-        self.config_file
-            .write_all(serde_json::to_vec(config).unwrap().as_ref())
-            .unwrap();
-    }
-
     fn get_data<T: DeserializeOwned>(&self, json_key: &str) -> Result<T, ()> {
         let generic_json: serde_json::Value =
             serde_json::from_reader(&self.data_file).map_err(|_| ())?;

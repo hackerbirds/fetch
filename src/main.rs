@@ -1,17 +1,12 @@
-use std::str::FromStr;
-
 use crate::extensions::deterministic_search::DeterministicSearchEngine;
 use crate::fs::config::Configuration;
 use crate::ui::search_bar::SearchBar;
 use crate::ui::search_engine::GpuiSearchEngine;
+use global_hotkey::GlobalHotKeyManager;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
-use global_hotkey::{
-    GlobalHotKeyManager,
-    hotkey::{Code, HotKey, Modifiers},
-};
 use gpui::{
-    AppContext, Application, Bounds, Keystroke, Pixels, WindowBackgroundAppearance, WindowBounds,
-    WindowKind, WindowOptions, actions,
+    AppContext, Application, Bounds, Pixels, WindowBackgroundAppearance, WindowBounds, WindowKind,
+    WindowOptions, actions,
 };
 use gpui_component::Root;
 
@@ -24,17 +19,18 @@ const APP_NAME: &str = "Fetch";
 
 actions!(
     fetch_actions,
-    [OpenApp, EnterPressed, EscPressed, TabSelectApp]
+    [EnterPressed, EscPressed, TabSelectApp, OpenSettings]
 );
 
 fn main() {
     let manager = GlobalHotKeyManager::new().unwrap();
-    let app_config = Configuration::default();
+    let config = Configuration::read_from_fs();
+    let hotkey = config.hotkey_config();
 
-    manager.register(load_hotkey_config(&app_config)).unwrap();
+    manager.register(hotkey).unwrap();
 
     // Attempt to register app to auto-start on login
-    if cfg!(target_os = "macos") && app_config.launch_on_boot {
+    if cfg!(target_os = "macos") && config.launch_on_boot {
         use smappservice_rs::{AppService, ServiceStatus, ServiceType};
 
         let app_service = AppService::new(ServiceType::MainApp);
@@ -55,15 +51,16 @@ fn main() {
 
     app.run(move |cx| {
         cx.bind_keys([
-            gpui::KeyBinding::new("alt", OpenApp, None),
             gpui::KeyBinding::new("enter", EnterPressed, None),
             gpui::KeyBinding::new("escape", EscPressed, None),
             gpui::KeyBinding::new("tab", TabSelectApp, None),
+            gpui::KeyBinding::new("cmd-t", OpenSettings, None),
         ]);
+
         // This must be called before using any GPUI Component features.
         gpui_component::init(cx);
 
-        cx.set_global(Configuration::default());
+        cx.set_global(config);
 
         let display_center = cx
             .primary_display()
@@ -72,7 +69,11 @@ fn main() {
             .center();
 
         cx.spawn(async move |cx| {
-            let search_engine = DeterministicSearchEngine::build();
+            let search_engine = cx
+                .read_global::<Configuration, DeterministicSearchEngine>(|config, _| {
+                    DeterministicSearchEngine::build(config)
+                })
+                .unwrap();
             let search_engine_entity = cx
                 .new(|_cx| GpuiSearchEngine::new(search_engine))
                 .expect("Search engine building is infallible");
@@ -123,50 +124,4 @@ fn main() {
         })
         .detach();
     });
-}
-
-fn load_hotkey_config(config: &Configuration) -> HotKey {
-    let parsed_global_hotkey =
-        Keystroke::parse(&config.open_search_hotkey).expect("Expected a valid keystroke");
-
-    let modifiers = {
-        let mut m = Modifiers::empty();
-        let gpui_m = parsed_global_hotkey.modifiers;
-
-        if gpui_m.alt {
-            m = m.union(Modifiers::ALT);
-        }
-        if gpui_m.control {
-            m = m.union(Modifiers::CONTROL);
-        }
-        if gpui_m.function {
-            m = m.union(Modifiers::FN);
-        }
-        if gpui_m.platform {
-            m = m.union(Modifiers::META);
-        }
-        if gpui_m.shift {
-            m = m.union(Modifiers::SHIFT);
-        }
-
-        m
-    };
-
-    let key_name = parsed_global_hotkey.key.clone();
-    let code = if key_name.is_empty() {
-        Code::Space
-    } else {
-        let key_name_uppercased: String = {
-            let mut c = key_name.chars();
-            match c.next() {
-                None => unreachable!("assert checks that key_name isn't empty"),
-                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-            }
-        };
-        Code::from_str(key_name_uppercased.as_str()).expect("Need a valid hotkey key")
-    };
-
-    debug_assert!(!modifiers.is_empty());
-
-    HotKey::new(Some(modifiers), code)
 }

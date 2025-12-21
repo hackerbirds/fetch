@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use gpui::{
     AppContext, Context, Corners, Entity, InteractiveElement, IntoElement, ParentElement, Render,
     Styled, Subscription, Window, div,
@@ -6,9 +8,10 @@ use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{ActiveTheme, StyledExt};
 
 use crate::apps::app_string::AppString;
+use crate::fs::config::config_file_path;
 use crate::ui::search_engine::GpuiSearchEngine;
 use crate::ui::search_results::SearchResultsList;
-use crate::{EnterPressed, EscPressed, TabSelectApp};
+use crate::{EnterPressed, EscPressed, OpenSettings, TabSelectApp};
 
 pub struct SearchBar {
     search_engine: Entity<GpuiSearchEngine>,
@@ -83,6 +86,11 @@ impl Render for SearchBar {
                 this.search_engine.update(cx, |search_engine, _cx| {
                     search_engine.update();
                 });
+                cx.notify();
+            }))
+            .on_action(cx.listener(|_, &OpenSettings, window, cx| {
+                window.remove_window();
+                cx.open_with_system(Path::new(config_file_path().to_str().unwrap()));
                 cx.notify();
             }))
             .on_action(cx.listener(|this, &EnterPressed, window, cx| {

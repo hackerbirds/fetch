@@ -20,6 +20,7 @@ use crate::{
     extensions::{DeferredReceiver, DeferredSender, DeferredToken, SearchEngine},
     fs::{
         apps::{AppList, apps},
+        config::Configuration,
         db::{AppPersistence, FilesystemPersistence},
     },
 };
@@ -27,6 +28,7 @@ use crate::{
 #[derive(Debug)]
 pub struct DeterministicSearchEngine {
     db: FilesystemPersistence,
+    config: Configuration,
     apps: AppList,
     learned_substring_index: HashMap<AppString, App>,
     substring_index: HashMap<AppString, Vec<AppName>>,
@@ -117,7 +119,7 @@ impl SearchEngine for DeterministicSearchEngine {
         self.deferred_token.store(0, Ordering::Release);
         // Check for modified apps, update if needed.
         let current_apps = &mut self.apps;
-        let new_apps = apps();
+        let new_apps = apps(&self.config);
         if new_apps.ne(current_apps) {
             let _ = std::mem::replace(current_apps, new_apps);
 
@@ -128,9 +130,9 @@ impl SearchEngine for DeterministicSearchEngine {
 
 impl DeterministicSearchEngine {
     #[must_use]
-    pub fn build() -> Self {
+    pub fn build(config: &Configuration) -> Self {
         let db = FilesystemPersistence::open();
-        let apps: AppList = apps();
+        let apps: AppList = apps(config);
         let substring_index: scc::HashMap<AppString, Vec<AppName>> = scc::HashMap::new();
 
         let learned_substring_index = db.get_data("learned_substring_index").unwrap_or_default();
@@ -138,6 +140,7 @@ impl DeterministicSearchEngine {
         let (tx, _rx) = channel((0, vec![]));
         let mut engine = Self {
             db,
+            config: config.clone(),
             apps,
             learned_substring_index,
             substring_index,
