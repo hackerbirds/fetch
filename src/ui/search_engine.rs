@@ -49,11 +49,6 @@ impl GpuiSearchEngine {
                 .expect("entity has not been released");
 
             loop {
-                if rx.changed().await.is_err() {
-                    // Closed rx, abort.
-                    return;
-                }
-
                 let search_token: DeferredToken = rx.borrow().0;
                 if search_token > token {
                     // New search executed on a different task,
@@ -66,6 +61,11 @@ impl GpuiSearchEngine {
                         this.results = search_results;
                         cx.notify();
                     });
+                }
+
+                if rx.changed().await.is_err() {
+                    // Closed rx, abort.
+                    return;
                 }
             }
         })
