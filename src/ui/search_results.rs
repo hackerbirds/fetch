@@ -1,22 +1,25 @@
-use std::ops::Neg;
+use std::{ops::Neg, sync::Arc};
 
 use gpui::{
     Context, ElementId, Fill, InteractiveElement, IntoElement, MouseButton, ParentElement, Point,
-    Render, ScrollHandle, SharedString, StatefulInteractiveElement, Styled, Window, div,
-    prelude::FluentBuilder,
+    Render, RenderImage, ScrollHandle, SharedString, StatefulInteractiveElement, Styled, Window,
+    div, img, prelude::FluentBuilder,
 };
 use gpui_component::ActiveTheme;
 
 #[derive(Clone)]
 pub struct SearchResultsList {
-    pub(crate) results: Vec<crate::apps::App>,
+    pub(crate) results: Vec<(crate::apps::App, Option<Arc<RenderImage>>)>,
     selected_result: usize,
     scroll_handle: ScrollHandle,
 }
 
 impl SearchResultsList {
     #[must_use]
-    pub fn new(results: Vec<crate::apps::App>, selected_result: usize) -> Self {
+    pub fn new(
+        results: Vec<(crate::apps::App, Option<Arc<RenderImage>>)>,
+        selected_result: usize,
+    ) -> Self {
         Self {
             results,
             selected_result,
@@ -34,8 +37,10 @@ impl Render for SearchResultsList {
             .flex_col()
             .track_scroll(&self.scroll_handle)
             .children(self.results.iter().enumerate().map(|(i, app)| {
-                let app_name = SharedString::from(app.name.clone());
-                let path = app.path.clone();
+                let app_name = SharedString::from(app.0.name.clone());
+                let path = app.0.path.clone();
+                let app_icon = app.1.clone();
+
                 div()
                     .id(ElementId::named_usize(app_name.clone(), i))
                     .p_0p5()
@@ -68,7 +73,14 @@ impl Render for SearchResultsList {
                         cx.open_with_system(path.as_path());
                         window.remove_window();
                     })
-                    .child(app_name)
+                    .child(
+                        div()
+                            .flex()
+                            .items_baseline()
+                            .gap_1()
+                            .when_some(app_icon, |this, ic| this.child(img(ic).h_7().w_7()))
+                            .child(app_name),
+                    )
             }))
     }
 }

@@ -1,13 +1,14 @@
 use std::path::Path;
 
 use gpui::{
-    AppContext, Context, Corners, Entity, InteractiveElement, IntoElement, ParentElement, Render,
-    Styled, Subscription, Window, div,
+    AppContext, Context, Corners, Entity, Image, InteractiveElement, IntoElement, ParentElement,
+    Render, Styled, Subscription, Window, div,
 };
 use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{ActiveTheme, StyledExt};
 
 use crate::apps::app_string::AppString;
+use crate::extensions::SearchEngine;
 use crate::fs::config::config_file_path;
 use crate::ui::search_engine::GpuiSearchEngine;
 use crate::ui::search_results::SearchResultsList;
@@ -83,8 +84,8 @@ impl Render for SearchBar {
             }))
             .on_action(cx.listener(|this, &EscPressed, window, cx| {
                 window.remove_window();
-                this.search_engine.update(cx, |search_engine, _cx| {
-                    search_engine.update();
+                this.search_engine.update(cx, |search_engine, cx| {
+                    search_engine.update_in_bg(cx);
                 });
                 cx.notify();
             }))
@@ -125,7 +126,23 @@ impl Render for SearchBar {
                     .overflow_y_hidden()
                     .child(cx.new(|cx| {
                         let search_results = self.search_engine.read(cx).results.clone();
-                        SearchResultsList::new(search_results, self.selected_result)
+
+                        // todo: GpuiApp struct
+                        let results_with_icon = search_results
+                            .into_iter()
+                            .map(|app| {
+                                let icon = Image::from_bytes(
+                                    gpui::ImageFormat::Png,
+                                    app.icon_png_img.clone(),
+                                )
+                                .to_image_data(cx.svg_renderer())
+                                .ok();
+
+                                (app, icon)
+                            })
+                            .collect();
+
+                        SearchResultsList::new(results_with_icon, self.selected_result)
                     })),
             )
     }
