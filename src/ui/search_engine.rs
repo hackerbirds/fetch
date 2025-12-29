@@ -1,8 +1,4 @@
-use std::{
-    ops::{Deref, DerefMut},
-    thread,
-    time::Duration,
-};
+use std::{thread, time::Duration};
 
 use gpui::{Entity, EventEmitter};
 
@@ -71,20 +67,29 @@ impl GpuiSearchEngine {
         })
         .detach();
     }
+
+    pub fn update_in_bg(&mut self, cx: &mut gpui::Context<'_, Self>) {
+        cx.spawn(async move |w, cx| {
+            #[allow(clippy::missing_panics_doc, reason = "entity has not been released")]
+            w.update(cx, |this, _cx| this.engine.update())
+                .expect("entity has not been released");
+        })
+        .detach();
+    }
 }
 
 impl EventEmitter<SearchEvent> for GpuiSearchEngine {}
 
-impl Deref for GpuiSearchEngine {
-    type Target = dyn SearchEngine;
-
-    fn deref(&self) -> &Self::Target {
-        self.engine.as_ref()
+impl SearchEngine for GpuiSearchEngine {
+    fn blocking_search(&self, query: AppString) -> Vec<App> {
+        self.engine.blocking_search(query)
     }
-}
 
-impl DerefMut for GpuiSearchEngine {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.engine.as_mut()
+    fn selected(&mut self, query_history: Vec<crate::apps::AppName>, opened_app: &App) {
+        self.engine.selected(query_history, opened_app);
+    }
+
+    fn update(&mut self) {
+        self.engine.update();
     }
 }

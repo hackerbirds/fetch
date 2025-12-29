@@ -4,7 +4,10 @@
 
 use std::{
     fmt::Debug,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use rayon::{
@@ -25,13 +28,13 @@ use crate::{
     },
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DeterministicSearchEngine {
-    db: FilesystemPersistence,
+    db: Arc<Mutex<FilesystemPersistence>>,
     config: Configuration,
-    apps: AppList,
-    learned_substring_index: HashMap<AppString, App>,
-    substring_index: HashMap<AppString, Vec<AppName>>,
+    apps: Arc<Mutex<AppList>>,
+    learned_substring_index: Arc<HashMap<AppString, App>>,
+    substring_index: Arc<HashMap<AppString, Vec<AppName>>>,
 
     /// Keeps track of the latest search query.
     /// The higher that number is, the more recent
@@ -40,13 +43,13 @@ pub struct DeterministicSearchEngine {
     /// search was started on a different thread,
     /// in which case old results (with smaller tokens)
     /// should be discarded
-    deferred_token: AtomicUsize,
+    deferred_token: Arc<AtomicUsize>,
     deferred_watcher: DeferredSender,
 }
 
 impl SearchEngine for DeterministicSearchEngine {
     fn blocking_search(&self, query: AppString) -> Vec<App> {
-        let mut filtered_apps: Vec<App> = self.apps.to_vec();
+        let mut filtered_apps: Vec<App> = self.apps.lock().expect("no poison").to_vec();
 
         filtered_apps.par_sort_by_cached_key(|app| app.name.clone());
 
@@ -107,7 +110,7 @@ impl SearchEngine for DeterministicSearchEngine {
                 .upsert_sync(query, opened_app.clone());
         });
 
-        self.db.save_data(
+        self.db.lock().unwrap().save_data(
             "learned_substring_index",
             self.learned_substring_index.clone(),
         );
@@ -118,13 +121,20 @@ impl SearchEngine for DeterministicSearchEngine {
     fn update(&mut self) {
         self.deferred_token.store(0, Ordering::Release);
         // Check for modified apps, update if needed.
-        let current_apps = &mut self.apps;
-        let new_apps = apps(&self.config);
-        if new_apps.ne(current_apps) {
-            let _ = std::mem::replace(current_apps, new_apps);
+        let applist = self.apps.clone();
 
-            self.index_apps();
-        }
+        let config = self.config.clone();
+        gpui::background_executor()
+            .spawn(async move {
+                let mut current_apps = applist.lock().unwrap();
+                let new_apps = apps(&config);
+                if new_apps.ne(&current_apps) {
+                    let _ = std::mem::replace(&mut *current_apps, new_apps);
+                }
+            })
+            .detach();
+
+        self.index_apps();
     }
 }
 
@@ -133,18 +143,19 @@ impl DeterministicSearchEngine {
     pub fn build(config: &Configuration) -> Self {
         let db = FilesystemPersistence::open();
         let apps: AppList = apps(config);
-        let substring_index: scc::HashMap<AppString, Vec<AppName>> = scc::HashMap::new();
+        let substring_index = Arc::new(scc::HashMap::new());
 
-        let learned_substring_index = db.get_data("learned_substring_index").unwrap_or_default();
+        let learned_substring_index =
+            Arc::new(db.get_data("learned_substring_index").unwrap_or_default());
 
         let (tx, _rx) = channel((0, vec![]));
-        let mut engine = Self {
-            db,
+        let engine = Self {
+            db: Arc::new(Mutex::new(db)),
             config: config.clone(),
-            apps,
+            apps: Arc::new(Mutex::new(apps)),
             learned_substring_index,
             substring_index,
-            deferred_token: AtomicUsize::new(0),
+            deferred_token: Arc::new(AtomicUsize::new(0)),
             deferred_watcher: tx,
         };
 
@@ -154,8 +165,8 @@ impl DeterministicSearchEngine {
     }
 
     #[inline]
-    fn index_apps(&mut self) {
-        self.apps.par_iter().for_each(|app| {
+    fn index_apps(&self) {
+        self.apps.lock().unwrap().par_iter().for_each(|app| {
             for n in 0..=app.name.grapheme_len() {
                 let substrings = substrings(&app.name, n);
                 for substr in substrings {

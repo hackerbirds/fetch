@@ -13,6 +13,7 @@ pub type AppName = AppString;
 pub struct App {
     pub(crate) name: AppName,
     pub(crate) path: PathBuf,
+    pub(crate) icon_png_img: Vec<u8>,
 }
 
 impl PartialOrd for App {
