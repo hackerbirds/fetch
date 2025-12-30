@@ -1,4 +1,6 @@
-use gpui::{Entity, EventEmitter};
+use std::sync::Arc;
+
+use gpui::{AppContext, Entity, EventEmitter};
 
 use crate::{
     apps::{App, app_string::AppString},
@@ -9,7 +11,7 @@ pub enum SearchEvent {
     Results(Vec<App>),
 }
 
-type SearchEngineDyn = Box<dyn SearchEngine>;
+type SearchEngineDyn = Arc<dyn SearchEngine>;
 pub struct GpuiSearchEngine {
     pub results: Vec<App>,
     engine: SearchEngineDyn,
@@ -21,19 +23,19 @@ impl GpuiSearchEngine {
     pub fn new(search_engine: impl SearchEngine + 'static) -> Self {
         Self {
             results: Vec::new(),
-            engine: Box::new(search_engine),
+            engine: Arc::new(search_engine),
         }
     }
 
-    pub fn blocking_search(&mut self, query: AppString, cx: &mut gpui::Context<'_, Self>) {
+    pub fn blocking_search(&mut self, cx: &mut gpui::Context<'_, Self>, query: AppString) {
         cx.emit(SearchEvent::Results(self.engine.blocking_search(query)));
     }
 
     pub fn deferred_search(
         &mut self,
-        query: AppString,
         cx: &mut gpui::Context<'_, Self>,
         window: &gpui::Window,
+        query: AppString,
     ) {
         cx.spawn_in(window, async move |w, cx| {
             #[allow(clippy::missing_panics_doc, reason = "entity has not been released")]
@@ -65,28 +67,28 @@ impl GpuiSearchEngine {
         .detach();
     }
 
-    pub fn update_in_bg(&mut self, cx: &mut gpui::Context<'_, Self>) {
-        cx.spawn(async move |w, cx| {
-            #[allow(clippy::missing_panics_doc, reason = "entity has not been released")]
-            w.update(cx, |this, _cx| this.engine.update())
-                .expect("entity has not been released");
+    pub fn selected(
+        &self,
+        cx: &mut gpui::Context<'_, Self>,
+        query_history: Vec<crate::apps::AppName>,
+        opened_app: App,
+    ) {
+        let engine = self.engine.clone();
+
+        cx.background_spawn(async move {
+            engine.selected(query_history, &opened_app);
+        })
+        .detach();
+    }
+
+    pub fn update(&self, cx: &mut gpui::Context<'_, Self>) {
+        let engine = self.engine.clone();
+
+        cx.background_spawn(async move {
+            engine.update();
         })
         .detach();
     }
 }
 
 impl EventEmitter<SearchEvent> for GpuiSearchEngine {}
-
-impl SearchEngine for GpuiSearchEngine {
-    fn blocking_search(&self, query: AppString) -> Vec<App> {
-        self.engine.blocking_search(query)
-    }
-
-    fn selected(&mut self, query_history: Vec<crate::apps::AppName>, opened_app: &App) {
-        self.engine.selected(query_history, opened_app);
-    }
-
-    fn update(&mut self) {
-        self.engine.update();
-    }
-}
