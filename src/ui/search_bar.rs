@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use gpui::{
-    AppContext, Context, Corners, Entity, Image, InteractiveElement, IntoElement, ParentElement,
-    Render, Styled, Subscription, Window, div,
+    AppContext, Context, Corners, Entity, InteractiveElement, IntoElement, ParentElement, Render,
+    Styled, Subscription, Window, div,
 };
 use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{ActiveTheme, StyledExt};
@@ -10,6 +10,7 @@ use gpui_component::{ActiveTheme, StyledExt};
 use crate::apps::app_string::AppString;
 use crate::extensions::SearchEngine;
 use crate::fs::config::config_file_path;
+use crate::ui::gpui_app::GpuiApp;
 use crate::ui::search_engine::GpuiSearchEngine;
 use crate::ui::search_results::SearchResultsList;
 use crate::{EnterPressed, EscPressed, OpenSettings, TabSelectApp};
@@ -125,24 +126,16 @@ impl Render for SearchBar {
                     .size_full()
                     .overflow_y_hidden()
                     .child(cx.new(|cx| {
-                        let search_results = self.search_engine.read(cx).results.clone();
-
-                        // todo: GpuiApp struct
-                        let results_with_icon = search_results
+                        let search_results = self
+                            .search_engine
+                            .read(cx)
+                            .results
+                            .clone()
                             .into_iter()
-                            .map(|app| {
-                                let icon = Image::from_bytes(
-                                    gpui::ImageFormat::Png,
-                                    app.icon_png_img.clone(),
-                                )
-                                .to_image_data(cx.svg_renderer())
-                                .ok();
-
-                                (app, icon)
-                            })
+                            .map(|app| GpuiApp::load(app, cx))
                             .collect();
 
-                        SearchResultsList::new(results_with_icon, self.selected_result)
+                        SearchResultsList::new(search_results, self.selected_result)
                     })),
             )
     }
