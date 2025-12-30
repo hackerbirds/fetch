@@ -18,7 +18,7 @@ jobs:
       run: cargo install cargo-bundle
 
     - name: Build macOS app
-      run: cargo bundle --release --verbose
+      run: cargo bundle --release
 
     - name: Upload to GitHub Releases
       run: |
