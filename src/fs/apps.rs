@@ -1,7 +1,7 @@
 use std::{
     fs::{DirEntry, File},
     io::BufReader,
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::FromStr,
 };
 
@@ -65,34 +65,24 @@ pub fn apps(config: &Configuration) -> AppList {
         .into()
 }
 
+#[allow(
+    clippy::missing_errors_doc,
+    clippy::result_unit_err,
+    reason = "Proper error handling is TODO"
+)]
 pub fn read_app_file(path: PathBuf) -> Result<App, ()> {
     if cfg!(target_os = "macos") {
-        if !path.is_dir() {
-            // Not a directory (apps on macOS are directories)
-            return Err(());
-        }
-
-        if !path.as_path().extension().is_some_and(|d| d == "app") {
-            // Not an .app
-            return Err(());
-        }
-
-        let name = path
-            .file_stem()
-            .ok_or(())?
-            .to_os_string()
-            .into_string()
-            .map_err(|_| ())?;
-
-        //
-        fn try_get_icon_data(name: &String, path: &PathBuf) -> Result<Vec<u8>, ()> {
+        // Because try blocks aren't stabilized, make this a function
+        // so that error propagation stops at the function scope if icon
+        // fails to load.
+        fn try_get_icon_data(name: &String, path: &Path) -> Result<Vec<u8>, ()> {
             let info_plist_path = path.join("Contents/Info.plist");
             let mut info_plist_res = plist::Value::from_file(&info_plist_path);
 
-            if let Err(_) = info_plist_res {
+            if info_plist_res.is_err() {
                 // Low-effort attempt at loading iPad apps downloaded from Mac App Store.
                 let info_plist_path = path.join(format!("Wrapper/{name}.app/Info.plist"));
-                info_plist_res = plist::Value::from_file(info_plist_path)
+                info_plist_res = plist::Value::from_file(info_plist_path);
             }
 
             let info_plist = info_plist_res.map_err(|_| ())?;
@@ -113,12 +103,13 @@ pub fn read_app_file(path: PathBuf) -> Result<App, ()> {
                 clippy::case_sensitive_file_extension_comparisons,
                 reason = "APFS is case-insensitive"
             )]
-            let icon_path = if !icon_name.ends_with(".icns") {
-                path.join(format!("Contents/Resources/{icon_name}.icns"))
+            let icns_suffix = if icon_name.ends_with(".icns") {
+                ""
             } else {
-                path.join(format!("Contents/Resources/{icon_name}"))
+                ".icns"
             };
 
+            let icon_path = path.join(format!("Contents/Resources/{icon_name}{icns_suffix}"));
             let icns_file = BufReader::new(File::open(icon_path).map_err(|_| ())?);
             let icon_family = IconFamily::read(icns_file).map_err(|_| ())?;
 
@@ -137,6 +128,23 @@ pub fn read_app_file(path: PathBuf) -> Result<App, ()> {
 
             Ok(png_data)
         }
+
+        if !path.is_dir() {
+            // Not a directory (apps on macOS are directories)
+            return Err(());
+        }
+
+        if path.as_path().extension().is_none_or(|d| d != "app") {
+            // Not an .app
+            return Err(());
+        }
+
+        let name = path
+            .file_stem()
+            .ok_or(())?
+            .to_os_string()
+            .into_string()
+            .map_err(|_| ())?;
 
         let icon_png_img = try_get_icon_data(&name, &path).unwrap_or_default();
 
