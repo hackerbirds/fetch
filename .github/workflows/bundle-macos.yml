@@ -24,10 +24,21 @@ jobs:
       run: |
         arch=$(uname -m)
         app_version="${GITHUB_REF#refs/tags/}"
-        app_name="Fetch-${app_version}-${arch}.app"
-        mv target/release/bundle/osx/Fetch.app target/release/bundle/osx/$app_name
+        app_src="target/release/bundle/osx/Fetch.app"
         
-        gh release upload "$app_version" target/release/bundle/osx/$app_name --clobber
+        mkdir -p dist
+        app_dst="dist/$Fetch-${app_version}-${arch}.app"
+        mv "$app_src" "$app_dst"
+    
+        # Create DMG
+        hdiutil create \
+          -volname "Fetch $app_version" \
+          -srcfolder "$app_dst" \
+          -ov \
+          -format UDZO \
+          "dist/Fetch-${app_version}-${arch}.dmg"
+          
+        gh release upload "$app_version" dist/Fetch-${app_version}-${arch}.dmg --clobber
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
