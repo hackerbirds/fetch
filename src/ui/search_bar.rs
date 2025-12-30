@@ -1,4 +1,3 @@
-use std::cmp;
 use std::path::Path;
 
 use gpui::{
