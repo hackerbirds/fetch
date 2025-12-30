@@ -27,7 +27,7 @@ jobs:
         app_name="Fetch-${app_version}-${arch}.app"
         mv target/release/bundle/osx/Fetch.app target/release/bundle/osx/$app_name
         
-        gh release upload ${{ github.ref }} target/release/bundle/osx/$app_name --clobber
+        gh release upload "$app_version" target/release/bundle/osx/$app_name --clobber
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
