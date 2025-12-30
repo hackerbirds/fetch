@@ -35,53 +35,60 @@ impl Render for SearchResultsList {
             .flex()
             .flex_col()
             .track_scroll(&self.scroll_handle)
-            .children(self.results.iter().enumerate().map(|(i, app)| {
-                let app_name = SharedString::from(app.name.clone());
-                let path = app.path.clone();
-                let app_icon = app.icon.clone();
+            .children(
+                self.results
+                    .iter()
+                    .skip(self.selected_result)
+                    .take(3)
+                    .enumerate()
+                    .map(|(i, app)| {
+                        let app_name = SharedString::from(app.name.clone());
+                        let path = app.path.clone();
+                        let app_icon = app.icon.clone();
 
-                div()
-                    .id(ElementId::named_usize(app_name.clone(), i))
-                    .p_0p5()
-                    .pl_2()
-                    // 32 px element
-                    .min_h_8()
-                    .h_8()
-                    // 2px margin
-                    .m_0p5()
-                    .when(i == self.selected_result, |mut this| {
-                        this.style().background =
-                            Some(Fill::Color(cx.theme().secondary_hover.into()));
-
-                        #[allow(
-                            clippy::cast_precision_loss,
-                            reason = "we don't need high precision, div el height is tiny"
-                        )]
-                        self.scroll_handle.set_offset(Point::new(
-                            0f64.into(),
-                            // 32px: height of el
-                            // 2px: margin top
-                            // 2px: margin bottom
-                            ((i * (32 + 2 + 2)) as f64).neg().into(),
-                        ));
-
-                        this
-                    })
-                    .hover(|style| style.bg(cx.theme().secondary_hover))
-                    .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                        cx.open_with_system(path.as_path());
-                        window.remove_window();
-                    })
-                    .child(
                         div()
-                            .flex()
-                            .items_baseline()
-                            .gap_1()
-                            .when_some(app_icon, |this, icon_img| {
-                                this.child(img(icon_img).h_7().w_7())
+                            .id(ElementId::named_usize(app_name.clone(), i))
+                            .p_0p5()
+                            .pl_2()
+                            // 32 px element
+                            .min_h_8()
+                            .h_8()
+                            // 2px margin
+                            .m_0p5()
+                            .when(i == 0, |mut this| {
+                                this.style().background =
+                                    Some(Fill::Color(cx.theme().secondary_hover.into()));
+
+                                #[allow(
+                                    clippy::cast_precision_loss,
+                                    reason = "we don't need high precision, div el height is tiny"
+                                )]
+                                self.scroll_handle.set_offset(Point::new(
+                                    0f64.into(),
+                                    // 32px: height of el
+                                    // 2px: margin top
+                                    // 2px: margin bottom
+                                    ((i * (32 + 2 + 2)) as f64).neg().into(),
+                                ));
+
+                                this
                             })
-                            .child(app_name),
-                    )
-            }))
+                            .hover(|style| style.bg(cx.theme().secondary_hover))
+                            .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                                cx.open_with_system(path.as_path());
+                                window.remove_window();
+                            })
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_baseline()
+                                    .gap_1()
+                                    .when_some(app_icon, |this, icon_img| {
+                                        this.child(img(icon_img).h_7().w_7())
+                                    })
+                                    .child(app_name),
+                            )
+                    }),
+            )
     }
 }

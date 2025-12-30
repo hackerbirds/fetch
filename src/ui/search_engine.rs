@@ -1,5 +1,3 @@
-use std::{thread, time::Duration};
-
 use gpui::{Entity, EventEmitter};
 
 use crate::{
@@ -28,7 +26,6 @@ impl GpuiSearchEngine {
     }
 
     pub fn blocking_search(&mut self, query: AppString, cx: &mut gpui::Context<'_, Self>) {
-        thread::sleep(Duration::from_secs(1));
         cx.emit(SearchEvent::Results(self.engine.blocking_search(query)));
     }
 
