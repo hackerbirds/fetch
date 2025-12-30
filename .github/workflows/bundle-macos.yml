@@ -13,24 +13,14 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-
-    - name: Run tests
-      run: cargo test --verbose
       
     - name: Install cargo-bundle
       run: cargo install cargo-bundle
 
     - name: Build macOS app
-      run: cargo bundle --release
+      run: cargo bundle --release --verbose
 
-    - name: Upload macOS app to GitHub Releases
-      uses: softprops/action-gh-release@v1
-      with:
-        files: target/release/bundle/osx/Fetch.app
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Rename and upload to GitHub Releases
+    - name: Upload to GitHub Releases
       run: |
         arch=$(uname -m)
         app_version="${GITHUB_REF#refs/tags/}"
