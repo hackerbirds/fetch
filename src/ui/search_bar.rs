@@ -12,7 +12,7 @@ use crate::fs::config::config_file_path;
 use crate::ui::gpui_app::GpuiApp;
 use crate::ui::search_engine::GpuiSearchEngine;
 use crate::ui::search_results::SearchResultsList;
-use crate::{EnterPressed, EscPressed, OpenSettings, TabSelectApp};
+use crate::{EnterPressed, EscPressed, OpenSettings, TabBackSelectApp, TabSelectApp};
 
 pub struct SearchBar {
     search_engine: Entity<GpuiSearchEngine>,
@@ -76,7 +76,14 @@ impl Render for SearchBar {
             .justify_center()
             .on_action(cx.listener(|this, &TabSelectApp, _, cx| {
                 let results_len = this.search_engine.read(cx).results.len();
-                this.selected_result = (this.selected_result + 1).rem_euclid(results_len);
+                this.selected_result =
+                    (this.selected_result + results_len + 1).rem_euclid(results_len);
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, &TabBackSelectApp, _, cx| {
+                let results_len = this.search_engine.read(cx).results.len();
+                this.selected_result =
+                    (this.selected_result + results_len - 1).rem_euclid(results_len);
                 cx.notify();
             }))
             .on_action(cx.listener(|this, &EscPressed, window, cx| {
