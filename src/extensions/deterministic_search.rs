@@ -83,27 +83,16 @@ impl SearchEngine for DeterministicSearchEngine {
         filtered_apps
     }
 
-    // Debug build code. Sends results back one by one for testing purposes :@)
-    #[cfg(debug_assertions)]
     fn deferred_search(&self, query: AppString) -> (DeferredToken, DeferredReceiver) {
         let tx = self.deferred_watcher.clone();
         let rx = tx.subscribe();
         let token = self.deferred_token.fetch_add(1, Ordering::Acquire);
-        tx.send_replace((token, vec![]));
-
         let res = self.blocking_search(query);
-
-        for entry in res {
-            tx.send_modify(|(w_token, vec)| {
-                if token == *w_token {
-                    vec.push(entry);
-                }
-            });
-        }
+        tx.send_replace((token, res));
         (token, rx)
     }
 
-    fn selected(&mut self, query_history: Vec<AppName>, opened_app: &App) {
+    fn selected(&self, query_history: Vec<AppName>, opened_app: &App) {
         query_history.into_par_iter().for_each(|query| {
             let _ = self
                 .learned_substring_index
@@ -118,22 +107,17 @@ impl SearchEngine for DeterministicSearchEngine {
         self.update();
     }
 
-    fn update(&mut self) {
+    fn update(&self) {
         self.deferred_token.store(0, Ordering::Release);
         // Check for modified apps, update if needed.
         let applist = self.apps.clone();
 
-        let config = self.config.clone();
-        gpui::background_executor()
-            .spawn(async move {
-                let mut current_apps = applist.lock().unwrap();
-                let new_apps = apps(&config);
-                if new_apps.ne(&current_apps) {
-                    let _ = std::mem::replace(&mut *current_apps, new_apps);
-                }
-            })
-            .detach();
-
+        let new_apps = apps(&self.config);
+        let mut current_apps = applist.lock().unwrap();
+        if new_apps.ne(&current_apps) {
+            let _ = std::mem::replace(&mut *current_apps, new_apps);
+        }
+        drop(current_apps);
         self.index_apps();
     }
 }

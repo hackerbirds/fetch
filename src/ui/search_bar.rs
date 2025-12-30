@@ -1,3 +1,4 @@
+use std::cmp;
 use std::path::Path;
 
 use gpui::{
@@ -8,7 +9,6 @@ use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{ActiveTheme, StyledExt};
 
 use crate::apps::app_string::AppString;
-use crate::extensions::SearchEngine;
 use crate::fs::config::config_file_path;
 use crate::ui::gpui_app::GpuiApp;
 use crate::ui::search_engine::GpuiSearchEngine;
@@ -46,7 +46,7 @@ impl SearchBar {
                     let value: AppString = value.into();
 
                     this.search_engine.update(cx, |this, cx| {
-                        this.deferred_search(value.clone(), cx, window);
+                        this.deferred_search(cx, window, value.clone());
                     });
                     this.selected_result = 0;
 
@@ -76,17 +76,14 @@ impl Render for SearchBar {
             .items_center()
             .justify_center()
             .on_action(cx.listener(|this, &TabSelectApp, _, cx| {
-                let search_results = &this.search_engine.read(cx).results;
-                if !search_results.is_empty() {
-                    this.selected_result =
-                        (this.selected_result + 1).rem_euclid(search_results.len());
-                }
+                let results_len = this.search_engine.read(cx).results.len();
+                this.selected_result = (this.selected_result + 1).rem_euclid(results_len);
                 cx.notify();
             }))
             .on_action(cx.listener(|this, &EscPressed, window, cx| {
                 window.remove_window();
                 this.search_engine.update(cx, |search_engine, cx| {
-                    search_engine.update_in_bg(cx);
+                    search_engine.update(cx);
                 });
                 cx.notify();
             }))
@@ -104,8 +101,8 @@ impl Render for SearchBar {
                     .cloned();
                 if let Some(app) = app_opt {
                     cx.open_with_system(app.path.as_path());
-                    this.search_engine.update(cx, |search_engine, _cx| {
-                        search_engine.selected(this.all_queries.clone(), &app);
+                    this.search_engine.update(cx, |search_engine, cx| {
+                        search_engine.selected(cx, this.all_queries.clone(), app);
                     });
                     window.remove_window();
                 }
@@ -132,10 +129,12 @@ impl Render for SearchBar {
                             .results
                             .clone()
                             .into_iter()
+                            .skip(self.selected_result)
+                            .take(3)
                             .map(|app| GpuiApp::load(app, cx))
                             .collect();
 
-                        SearchResultsList::new(search_results, self.selected_result)
+                        SearchResultsList::new(search_results)
                     })),
             )
     }
