@@ -1,6 +1,11 @@
 name: Bundle app for macOS
+
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
+  
 on:
   push:
     tags:
@@ -27,7 +32,7 @@ jobs:
         app_src="target/release/bundle/osx/Fetch.app"
         
         mkdir -p dist
-        app_dst="dist/$Fetch-${app_version}-${arch}.app"
+        app_dst="dist/Fetch-${app_version}-${arch}.app"
         mv "$app_src" "$app_dst"
     
         # Create DMG
