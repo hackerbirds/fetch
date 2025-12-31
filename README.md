@@ -27,7 +27,7 @@ While the search bar is active, press `Cmd+T` (`⌘+T`) to open the configuratio
 
 There are two ways you can install Fetch:
 
-1. (Download the pre-packaged release)[https://github.com/hackerbirds/fetch/releases]
+1. [Download the pre-packaged release](https://github.com/hackerbirds/fetch/releases)
   - NOTE: Fetch is not notarized (I refuse to pay for an Apple developer certificate), so macOS will pretend it's "damaged" when opening the pre-packaged app. To fix this, you need to disable notarization quarantine from the terminal by running `xattr -d com.apple.quarantine /path/to/Fetch.app`. 
 
 2. You can build the app yourself using `cargo bundle`. Run the following commands in your terminal:
