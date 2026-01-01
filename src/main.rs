@@ -103,8 +103,8 @@ fn main() {
                         window_bounds: Some(WindowBounds::Windowed(Bounds::centered_at(
                             display_center,
                             gpui::Size {
-                                width: Pixels::from(500u32),
-                                height: Pixels::from(180u32),
+                                width: Pixels::from(520u32),
+                                height: Pixels::from(250u32),
                             },
                         ))),
                         focus: true,

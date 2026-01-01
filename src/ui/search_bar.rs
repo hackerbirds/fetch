@@ -23,6 +23,11 @@ pub struct SearchBar {
     selected_result: usize,
 }
 
+/// The number of elements to render in gpui. This corresponds
+/// to how many search results at once are physically able to
+/// appear in the GUI (whose window height is a fixed size)
+const MAX_RENDERED_ELS: usize = 4;
+
 impl SearchBar {
     pub fn new(
         window: &mut Window,
@@ -30,7 +35,7 @@ impl SearchBar {
         search_engine: Entity<GpuiSearchEngine>,
     ) -> Self {
         let input_state = cx.new(|cx| {
-            let is = InputState::new(window, cx).placeholder("Search app");
+            let is = InputState::new(window, cx).placeholder("Search an app");
             is.focus(window, cx);
             is
         });
@@ -74,16 +79,21 @@ impl Render for SearchBar {
             .size_full()
             .items_center()
             .justify_center()
+            .bg(cx.theme().secondary)
             .on_action(cx.listener(|this, &TabSelectApp, _, cx| {
                 let results_len = this.search_engine.read(cx).results.len();
-                this.selected_result =
-                    (this.selected_result + results_len + 1).rem_euclid(results_len);
+                if results_len > 0 {
+                    this.selected_result =
+                        (this.selected_result + results_len + 1).rem_euclid(results_len);
+                }
                 cx.notify();
             }))
             .on_action(cx.listener(|this, &TabBackSelectApp, _, cx| {
                 let results_len = this.search_engine.read(cx).results.len();
-                this.selected_result =
-                    (this.selected_result + results_len - 1).rem_euclid(results_len);
+                if results_len > 0 {
+                    this.selected_result =
+                        (this.selected_result + results_len - 1).rem_euclid(results_len);
+                }
                 cx.notify();
             }))
             .on_action(cx.listener(|this, &EscPressed, window, cx| {
@@ -116,11 +126,12 @@ impl Render for SearchBar {
             }))
             .child(
                 Input::new(&self.input_state)
-                    .bg(cx.theme().secondary)
+                    .bg(cx.theme().sidebar_border)
                     .corner_radii(Corners::all(10.0f64.into()))
+                    .border_color(cx.theme().window_border)
                     .m_auto()
-                    .h_20()
-                    .text_2xl(),
+                    .h_16()
+                    .text_xl(),
             )
             .child(
                 div()
@@ -136,7 +147,7 @@ impl Render for SearchBar {
                             .clone()
                             .into_iter()
                             .skip(self.selected_result)
-                            .take(3)
+                            .take(MAX_RENDERED_ELS)
                             .map(|app| GpuiApp::load(app, cx))
                             .collect();
 
