@@ -151,8 +151,11 @@ pub fn read_app_file(path: PathBuf) -> Result<App, Report> {
 
         let icon_png_img = match try_get_icon_data(&name, &path) {
             Ok(icon_data) => icon_data,
+            #[cfg_attr(
+                not(debug_assertions),
+                allow(unused_variables, reason = "Debug-only log")
+            )]
             Err(report) => {
-                #[cfg(debug_assertions)]
                 println!(
                     "{}",
                     report.context(format!("Could not load icon for app \"{name}\""))
