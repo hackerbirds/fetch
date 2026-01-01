@@ -22,7 +22,6 @@ impl AppString {
     #[inline]
     #[must_use]
     pub fn grapheme_len(&self) -> usize {
-        #[expect(clippy::missing_panics_doc, reason = "upper bound size hint exists")]
         self.0
             .graphemes(true)
             .size_hint()

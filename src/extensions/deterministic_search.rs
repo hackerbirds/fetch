@@ -14,6 +14,7 @@ use rayon::{
     iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
     slice::ParallelSliceMut,
 };
+use rootcause::Report;
 use scc::HashMap;
 use tokio::sync::watch::channel;
 use unicode_segmentation::UnicodeSegmentation;
@@ -99,10 +100,14 @@ impl SearchEngine for DeterministicSearchEngine {
                 .upsert_sync(query, opened_app.clone());
         });
 
-        self.db.lock().unwrap().save_data(
-            "learned_substring_index",
-            self.learned_substring_index.clone(),
-        );
+        self.db
+            .lock()
+            .expect("no lock poisoning")
+            .save_data(
+                "learned_substring_index",
+                self.learned_substring_index.clone(),
+            )
+            .expect("json map is expected to function");
 
         self.update();
     }
@@ -113,7 +118,7 @@ impl SearchEngine for DeterministicSearchEngine {
         let applist = self.apps.clone();
 
         let new_apps = apps(&self.config);
-        let mut current_apps = applist.lock().unwrap();
+        let mut current_apps = applist.lock().expect("no lock poisoning");
         if new_apps.ne(&current_apps) {
             let _ = std::mem::replace(&mut *current_apps, new_apps);
         }
@@ -123,9 +128,8 @@ impl SearchEngine for DeterministicSearchEngine {
 }
 
 impl DeterministicSearchEngine {
-    #[must_use]
-    pub fn build(config: &Configuration) -> Self {
-        let db = FilesystemPersistence::open();
+    pub fn build(config: &Configuration) -> Result<Self, Report> {
+        let db = FilesystemPersistence::open()?;
         let apps: AppList = apps(config);
         let substring_index = Arc::new(scc::HashMap::new());
 
@@ -145,22 +149,26 @@ impl DeterministicSearchEngine {
 
         engine.index_apps();
 
-        engine
+        Ok(engine)
     }
 
     #[inline]
     fn index_apps(&self) {
-        self.apps.lock().unwrap().par_iter().for_each(|app| {
-            for n in 0..=app.name.grapheme_len() {
-                let substrings = substrings(&app.name, n);
-                for substr in substrings {
-                    self.substring_index
-                        .entry_sync(substr.into())
-                        .or_default()
-                        .push(app.name.clone());
+        self.apps
+            .lock()
+            .expect("no lock poisoning")
+            .par_iter()
+            .for_each(|app| {
+                for n in 0..=app.name.grapheme_len() {
+                    let substrings = substrings(&app.name, n);
+                    for substr in substrings {
+                        self.substring_index
+                            .entry_sync(substr.into())
+                            .or_default()
+                            .push(app.name.clone());
+                    }
                 }
-            }
-        });
+            });
     }
 
     #[inline]
@@ -184,7 +192,6 @@ pub fn substrings(string: &str, n: usize) -> Vec<String> {
     let mut vec = vec![];
     for i in 0..=(string.len() - n) {
         // TODO: Slow, can probably use pointers + graphemes here to get valid UTF-8 memory range
-        #[expect(clippy::missing_panics_doc, reason = "infallible")]
         let substr_vec = graphemes.get(i..i + n).expect("within range").to_vec();
 
         if !substr_vec.is_empty() {

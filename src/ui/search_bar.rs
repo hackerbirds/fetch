@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use gpui::{
     AppContext, Context, Corners, Entity, InteractiveElement, IntoElement, ParentElement, Render,
     Styled, Subscription, Window, div,
@@ -105,7 +103,9 @@ impl Render for SearchBar {
             }))
             .on_action(cx.listener(|_, &OpenSettings, window, cx| {
                 window.remove_window();
-                cx.open_with_system(Path::new(config_file_path().to_str().unwrap()));
+                if let Ok(cfg_path) = config_file_path() {
+                    cx.open_with_system(&cfg_path);
+                }
                 cx.notify();
             }))
             .on_action(cx.listener(|this, &EnterPressed, window, cx| {

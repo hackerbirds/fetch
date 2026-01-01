@@ -14,6 +14,7 @@ dependencies = [
  "icns",
  "plist",
  "rayon",
+ "rootcause",
  "scc",
  "serde",
  "serde_json",
@@ -4768,6 +4769,28 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "rootcause"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19b2fa24b30d915f807d1a14eb9eb0947fad76d6e63f165f3969e61a2942a928"
+dependencies = [
+ "hashbrown 0.16.0",
+ "indexmap",
+ "rootcause-internals",
+ "rustc-hash 2.1.1",
+ "triomphe",
+]
+
+[[package]]
+name = "rootcause-internals"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15e09e790e6a1ade68d035e081be5054b03b9329a7b568ea5707c4395053b778"
+dependencies = [
+ "triomphe",
 ]
 
 [[package]]

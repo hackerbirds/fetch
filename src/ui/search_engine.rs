@@ -38,7 +38,6 @@ impl GpuiSearchEngine {
         query: AppString,
     ) {
         cx.spawn_in(window, async move |w, cx| {
-            #[allow(clippy::missing_panics_doc, reason = "entity has not been released")]
             let (token, mut rx): (DeferredToken, DeferredReceiver) = w
                 .read_with(cx, |this, _cx| this.engine.deferred_search(query.clone()))
                 .expect("entity has not been released");

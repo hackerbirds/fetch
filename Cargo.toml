@@ -11,6 +11,7 @@ global-hotkey = "0.7.0"
 gpui = "0.2.2"
 gpui-component = "0.4.1"
 rayon = "1.11.0"
+rootcause = "0.11.0"
 scc = { version = "3.3.7", features = ["serde"] }
 serde = "1"
 serde_json = "1"

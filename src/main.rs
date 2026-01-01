@@ -1,3 +1,11 @@
+#![allow(
+    clippy::missing_errors_doc,
+    reason = "Not a library + errors are self-describing"
+)]
+#![allow(
+    clippy::missing_panics_doc,
+    reason = "Not a library + Usage of `except` over `unwrap` is enforced, facilitating panic auditing"
+)]
 use crate::extensions::deterministic_search::DeterministicSearchEngine;
 use crate::fs::config::Configuration;
 use crate::ui::search_bar::SearchBar;
@@ -9,6 +17,7 @@ use gpui::{
     WindowOptions, actions,
 };
 use gpui_component::Root;
+use rootcause::Report;
 
 pub mod apps;
 pub mod extensions;
@@ -28,12 +37,12 @@ actions!(
     ]
 );
 
-fn main() {
-    let manager = GlobalHotKeyManager::new().unwrap();
-    let config = Configuration::read_from_fs();
-    let hotkey = config.hotkey_config();
+fn main() -> Result<(), Report> {
+    let manager = GlobalHotKeyManager::new()?;
+    let config = Configuration::read_from_fs()?;
+    let hotkey = config.hotkey_config()?;
 
-    manager.register(hotkey).unwrap();
+    manager.register(hotkey)?;
 
     // Attempt to register app to auto-start on login
     if cfg!(target_os = "macos") && config.launch_on_boot {
@@ -78,9 +87,14 @@ fn main() {
         cx.spawn(async move |cx| {
             let search_engine = cx
                 .read_global::<Configuration, DeterministicSearchEngine>(|config, _| {
-                    DeterministicSearchEngine::build(config)
+                    match DeterministicSearchEngine::build(config) {
+                        Ok(engine) => engine,
+                        Err(report) => {
+                            panic!("{}", report.context("Could not build search engine"))
+                        }
+                    }
                 })
-                .unwrap();
+                .expect("If search engine can't be build, there is nothing to be doing");
             let search_engine_entity = cx
                 .new(|_cx| GpuiSearchEngine::new(search_engine))
                 .expect("Search engine building is infallible");
@@ -125,10 +139,12 @@ fn main() {
 
                         cx.new(|cx| Root::new(view, window, cx))
                     })
-                    .unwrap();
+                    .expect("If window can't be opened, there is nothing to be doing");
                 }
             }
         })
         .detach();
     });
+
+    Ok(())
 }

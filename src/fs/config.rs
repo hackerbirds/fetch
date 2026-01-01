@@ -1,12 +1,13 @@
 use std::{
     fs::File,
-    io::Write,
+    io::{ErrorKind, Write},
     path::{Path, PathBuf},
     str::FromStr,
 };
 
 use global_hotkey::hotkey::{Code, HotKey, Modifiers};
 use gpui::{Global, Keystroke};
+use rootcause::{Report, prelude::ResultExt, report};
 use serde::{Deserialize, Serialize};
 
 use crate::fs::apps::{APPLICATION_DIRS, APPLICATIONS};
@@ -45,46 +46,42 @@ impl Default for Configuration {
 impl Global for Configuration {}
 
 impl Configuration {
-    #[must_use]
-    #[allow(clippy::missing_panics_doc, reason = "Error handling is TODO")]
-    pub fn read_from_fs() -> Configuration {
-        let config_path = config_file_path();
+    pub fn read_from_fs() -> Result<Configuration, Report> {
+        let config_path = config_file_path()?;
         let config_file = File::options()
             .read(true)
             .write(true)
             .create(true)
             .truncate(false)
-            .open(&config_path)
-            .expect("TODO (file opens)");
+            .open(&config_path)?;
 
-        serde_json::from_reader(&config_file).unwrap_or_else(|_| {
+        if let Ok(res) = serde_json::from_reader(&config_file) {
+            Ok(res)
+        } else {
             // Write defaults to fs if config file is corrupted or doesn'texist
             let config = Configuration::default();
-            config.write_to_fs(&config_path);
-            config
-        })
+            config.write_to_fs(&config_path)?;
+            Ok(config)
+        }
     }
 
-    fn write_to_fs(&self, path: &Path) {
-        let serialized = serde_json::to_vec_pretty(self).expect("TODO (config serialization)");
+    fn write_to_fs(&self, path: &Path) -> Result<(), Report> {
+        let serialized = serde_json::to_vec_pretty(self)?;
 
         let mut config_file = File::options()
             .write(true)
             .create(true)
             .truncate(true)
-            .open(path)
-            .expect("TODO (file opens)");
+            .open(path)?;
 
-        config_file
-            .write_all(serialized.as_ref())
-            .expect("TODO (write config)");
+        config_file.write_all(serialized.as_ref())?;
+
+        Ok(())
     }
 
-    #[must_use]
-    #[allow(clippy::missing_panics_doc, reason = "Error handling is TODO")]
-    pub fn hotkey_config(&self) -> HotKey {
+    pub fn hotkey_config(&self) -> Result<HotKey, Report> {
         let parsed_global_hotkey =
-            Keystroke::parse(&self.open_search_hotkey).expect("Expected a valid keystroke");
+            Keystroke::parse(&self.open_search_hotkey).attach("Expected a valid keystroke")?;
 
         let modifiers = {
             let mut m = Modifiers::empty();
@@ -120,29 +117,35 @@ impl Configuration {
                     Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
                 }
             };
-            Code::from_str(key_name_uppercased.as_str()).expect("Need a valid hotkey key")
+            Code::from_str(key_name_uppercased.as_str()).attach("Need a valid hotkey key")?
         };
 
         debug_assert!(!modifiers.is_empty());
 
-        HotKey::new(Some(modifiers), code)
+        Ok(HotKey::new(Some(modifiers), code))
     }
 }
 
-#[must_use]
-#[allow(clippy::missing_panics_doc, reason = "Error handling is TODO")]
-pub fn config_file_path() -> PathBuf {
+pub fn config_file_path() -> Result<PathBuf, Report> {
     let mut fetch_app_dir = dirs::data_local_dir()
-        .expect("supported for all of fetch's platforms (macos, windows, and linux)");
+        .ok_or_else(|| report!("No data local directory found (are you on a supported OS?)"))?;
 
     fetch_app_dir.push("Fetch");
 
-    // TODO: Error handle permissions
-    let _ = std::fs::create_dir(&fetch_app_dir);
+    if let Err(io_err) = std::fs::create_dir(&fetch_app_dir) {
+        match io_err.kind() {
+            ErrorKind::AlreadyExists => { /* no-op */ }
+            other => {
+                return Err(report!(other)
+                    .attach("Failed to create data directory")
+                    .into());
+            }
+        }
+    }
 
     fetch_app_dir.push(CONFIG_FILE_NAME);
 
-    fetch_app_dir
+    Ok(fetch_app_dir)
 }
 
 #[inline]
