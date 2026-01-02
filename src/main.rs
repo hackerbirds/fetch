@@ -33,7 +33,7 @@ actions!(
         EscPressed,
         TabSelectApp,
         TabBackSelectApp,
-        OpenSettings
+        OpenSettings,
     ]
 );
 
@@ -69,7 +69,9 @@ fn main() -> Result<(), Report> {
             gpui::KeyBinding::new("enter", EnterPressed, None),
             gpui::KeyBinding::new("escape", EscPressed, None),
             gpui::KeyBinding::new("tab", TabSelectApp, None),
+            gpui::KeyBinding::new("down", TabSelectApp, None),
             gpui::KeyBinding::new("shift-tab", TabBackSelectApp, None),
+            gpui::KeyBinding::new("up", TabBackSelectApp, None),
             gpui::KeyBinding::new("cmd-t", OpenSettings, None),
         ]);
 

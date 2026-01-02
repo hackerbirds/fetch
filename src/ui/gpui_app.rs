@@ -13,7 +13,7 @@ pub struct GpuiApp {
 }
 
 impl GpuiApp {
-    pub fn load(app: App, cx: &mut gpui::App) -> Self {
+    pub fn load(app: App, cx: &gpui::App) -> Self {
         const IMAGE_FORMAT: ImageFormat = ImageFormat::Png;
         let image = gpui::Image::from_bytes(IMAGE_FORMAT, app.icon_png_img);
         let rendered_image = image.to_image_data(cx.svg_renderer()).ok();
