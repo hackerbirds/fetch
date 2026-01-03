@@ -120,7 +120,7 @@ fn main() -> Result<(), Report> {
                             display_center,
                             gpui::Size {
                                 width: Pixels::from(520u32),
-                                height: Pixels::from(250u32),
+                                height: Pixels::from(270u32),
                             },
                         ))),
                         focus: true,

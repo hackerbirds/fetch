@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use gpui::prelude::FluentBuilder;
 use gpui::{
     AppContext, Context, Corners, ElementId, Entity, Fill, InteractiveElement, IntoElement,
@@ -97,7 +99,7 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
                 if results_len > 0 {
                     let selected_app_idx = this.scrolled_result_idx + this.hovered_offset_idx;
                     // User scrolled down at the last index, so we need to loop back up
-                    let wrap_around_needed = selected_app_idx > results_len;
+                    let wrap_around_needed = selected_app_idx >= results_len - 1;
                     if wrap_around_needed {
                         this.scrolled_result_idx = 0;
                         this.hovered_offset_idx = 0;
@@ -112,8 +114,24 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
             .on_action(cx.listener(|this, &TabBackSelectApp, _, cx| {
                 let results_len = this.search_engine.read(cx).results.len();
                 if results_len > 0 {
-                    if this.hovered_offset_idx > 0 {
-                        this.hovered_offset_idx -= 1;
+                    let selected_app_idx = this.scrolled_result_idx + this.hovered_offset_idx;
+                    // User scrolled down at the first index, so we need to loop back down
+                    let wrap_around_needed = selected_app_idx == 0;
+                    if wrap_around_needed {
+                        this.hovered_offset_idx = min(results_len, MAX_RENDERED_ELS) - 1;
+                        this.scrolled_result_idx = (results_len - 1).saturating_sub(this.hovered_offset_idx);
+                    } else if this.hovered_offset_idx > 0 {
+                        if this.scrolled_result_idx > 0 && this.hovered_offset_idx == 1  {
+                            // Lock hovered index to 1 when we're scrolling back
+                            // so that the user can visually tell that there are more apps
+                            // at the top of the list (and also see which app it is, so if
+                            // the user knows that this is the app they want, they'll know
+                            // before the last keypress)
+                            this.scrolled_result_idx =
+                                (this.scrolled_result_idx + results_len - 1).rem_euclid(results_len);
+                        } else {
+                            this.hovered_offset_idx -= 1;
+                        }
                     } else {
                         this.scrolled_result_idx =
                             (this.scrolled_result_idx + results_len - 1).rem_euclid(results_len);
@@ -182,7 +200,7 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
                                 .results
                                 .iter()
                                 .skip(self.scrolled_result_idx)
-                                .take(MAX_RENDERED_ELS)
+                                .take(MAX_RENDERED_ELS + 1)
                                 .map(|app| self.gpui_app_renderer.load(app, cx)).enumerate().map(|(i, GpuiApp { name, path, icon })| {
                                     #[allow(
                                         clippy::cast_precision_loss,
