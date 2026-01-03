@@ -15,7 +15,7 @@ use rayon::{
     slice::ParallelSliceMut,
 };
 use rootcause::Report;
-use scc::HashMap;
+use scc::{Guard, HashMap};
 use tokio::sync::watch::channel;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -46,10 +46,18 @@ pub struct DeterministicSearchEngine {
     /// should be discarded
     deferred_token: Arc<AtomicUsize>,
     deferred_watcher: DeferredSender,
+
+    /// Every query the user has entered when searching
+    /// for an app. For instance, if the user launches Fetch, and opens
+    /// Firefox by having search "Fire", then the vector will contain the
+    /// following: `["F", "Fi", "Fir", "Fire"]`
+    query_history: scc::Stack<AppString>,
 }
 
 impl SearchEngine for DeterministicSearchEngine {
     fn blocking_search(&self, query: AppString) -> Vec<App> {
+        self.query_history.push(query.clone());
+
         let mut filtered_apps: Vec<App> = self.apps.lock().expect("no poison").to_vec();
 
         filtered_apps.par_sort_by_cached_key(|app| app.name.clone());
@@ -93,26 +101,29 @@ impl SearchEngine for DeterministicSearchEngine {
         (token, rx)
     }
 
-    fn selected(&self, query_history: Vec<AppName>, opened_app: &App) {
-        query_history.into_par_iter().for_each(|query| {
-            let _ = self
-                .learned_substring_index
-                .upsert_sync(query, opened_app.clone());
-        });
+    fn after_search(&self, opened_app: Option<App>) {
+        let query_history = self.query_history.pop_all();
 
-        self.db
-            .lock()
-            .expect("no lock poisoning")
-            .save_data(
-                "learned_substring_index",
-                self.learned_substring_index.clone(),
-            )
-            .expect("json map is expected to function");
+        if let Some(app) = opened_app {
+            {
+                let guard = Guard::new();
+                query_history.iter(&guard).for_each(|query| {
+                    let _ = self
+                        .learned_substring_index
+                        .upsert_sync(query.clone(), app.clone());
+                });
+            }
 
-        self.update();
-    }
+            self.db
+                .lock()
+                .expect("no lock poisoning")
+                .save_data(
+                    "learned_substring_index",
+                    self.learned_substring_index.clone(),
+                )
+                .expect("json map is expected to function");
+        }
 
-    fn update(&self) {
         self.deferred_token.store(0, Ordering::Release);
         // Check for modified apps, update if needed.
         let applist = self.apps.clone();
@@ -145,6 +156,7 @@ impl DeterministicSearchEngine {
             substring_index,
             deferred_token: Arc::new(AtomicUsize::new(0)),
             deferred_watcher: tx,
+            query_history: scc::Stack::new(),
         };
 
         engine.index_apps();

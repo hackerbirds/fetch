@@ -11,17 +11,16 @@ pub enum SearchEvent {
     Results(Vec<App>),
 }
 
-type SearchEngineDyn = Arc<dyn SearchEngine>;
-pub struct GpuiSearchEngine {
+pub struct GpuiSearchEngine<SE: SearchEngine> {
     pub results: Vec<App>,
-    engine: SearchEngineDyn,
+    engine: Arc<SE>,
 }
 
-pub type SearchEngineEntity = Entity<SearchEngineDyn>;
+pub type SearchEngineEntity<SE> = Entity<Arc<SE>>;
 
-impl GpuiSearchEngine {
-    pub fn new(search_engine: impl SearchEngine + 'static) -> Self {
-        Self {
+impl<SE: SearchEngine> GpuiSearchEngine<SE> {
+    pub fn new(search_engine: SE) -> GpuiSearchEngine<SE> {
+        GpuiSearchEngine::<SE> {
             results: Vec::new(),
             engine: Arc::new(search_engine),
         }
@@ -66,28 +65,14 @@ impl GpuiSearchEngine {
         .detach();
     }
 
-    pub fn selected(
-        &self,
-        cx: &mut gpui::Context<'_, Self>,
-        query_history: Vec<crate::apps::AppName>,
-        opened_app: App,
-    ) {
+    pub fn after_search(&self, cx: &mut gpui::Context<'_, Self>, opened_app: Option<App>) {
         let engine = self.engine.clone();
 
         cx.background_spawn(async move {
-            engine.selected(query_history, &opened_app);
-        })
-        .detach();
-    }
-
-    pub fn update(&self, cx: &mut gpui::Context<'_, Self>) {
-        let engine = self.engine.clone();
-
-        cx.background_spawn(async move {
-            engine.update();
+            engine.after_search(opened_app);
         })
         .detach();
     }
 }
 
-impl EventEmitter<SearchEvent> for GpuiSearchEngine {}
+impl<SE: SearchEngine> EventEmitter<SearchEvent> for GpuiSearchEngine<SE> {}

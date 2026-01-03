@@ -8,15 +8,15 @@ use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{ActiveTheme, StyledExt};
 
 use crate::apps::app_string::AppString;
+use crate::extensions::SearchEngine;
 use crate::fs::config::config_file_path;
 use crate::ui::gpui_app::GpuiApp;
 use crate::ui::search_engine::GpuiSearchEngine;
 use crate::{EnterPressed, EscPressed, OpenSettings, TabBackSelectApp, TabSelectApp};
 
-pub struct SearchBar {
-    search_engine: Entity<GpuiSearchEngine>,
+pub struct SearchBar<SE: SearchEngine> {
+    search_engine: Entity<GpuiSearchEngine<SE>>,
     input_state: Entity<InputState>,
-    query_history: Vec<AppString>,
     #[expect(unused)]
     subscriptions: Vec<Subscription>,
     /// The index of the first result the user has scrolled to
@@ -40,19 +40,17 @@ const RESULT_EL_HEIGHT: usize = 44;
 /// The padding (all sides) of the element containing a search result (icon + app name)
 const RESULT_EL_PADDING: usize = 8;
 
-impl SearchBar {
+impl<SE: SearchEngine> SearchBar<SE> {
     pub fn new(
         window: &mut Window,
         cx: &mut Context<Self>,
-        search_engine: Entity<GpuiSearchEngine>,
+        search_engine: Entity<GpuiSearchEngine<SE>>,
     ) -> Self {
         let input_state = cx.new(|cx| {
             let is = InputState::new(window, cx).placeholder("Search an app");
             is.focus(window, cx);
             is
         });
-
-        let query_history = vec![];
 
         let subscriptions = vec![cx.subscribe_in(&input_state, window, {
             let input_state = input_state.clone();
@@ -65,8 +63,6 @@ impl SearchBar {
                         this.deferred_search(cx, window, value.clone());
                     });
                     this.scrolled_result_idx = 0;
-
-                    this.query_history.push(value);
                     cx.notify();
                 }
             }
@@ -75,7 +71,6 @@ impl SearchBar {
         Self {
             search_engine,
             input_state,
-            query_history,
             subscriptions,
             scrolled_result_idx: 0,
             hovered_offset_idx: 0,
@@ -84,7 +79,7 @@ impl SearchBar {
     }
 }
 
-impl Render for SearchBar {
+impl<SE: SearchEngine> Render for SearchBar<SE> {
     #[allow(clippy::too_many_lines, reason = "Results entity needs refactor")]
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
@@ -127,7 +122,7 @@ impl Render for SearchBar {
             .on_action(cx.listener(|this, &EscPressed, window, cx| {
                 window.remove_window();
                 this.search_engine.update(cx, |search_engine, cx| {
-                    search_engine.update(cx);
+                    search_engine.after_search(cx, None);
                 });
                 cx.notify();
             }))
@@ -151,7 +146,7 @@ impl Render for SearchBar {
                 if let Some(app) = app_opt {
                     cx.open_with_system(app.path.as_path());
                     this.search_engine.update(cx, |search_engine, cx| {
-                        search_engine.selected(cx, this.query_history.clone(), app);
+                        search_engine.after_search(cx, Some(app));
                     });
                     window.remove_window();
                 }
