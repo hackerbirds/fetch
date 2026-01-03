@@ -8,7 +8,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::apps::app_substr::AppSubstr;
 
-/// NOTE: Case insensitive, efficient representation of an immutable string
+/// Case insensitive, efficient representation of an immutable UTF-8 encoded string
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AppString(#[serde(with = "unicase_serde::unicase")] UniCase<ArcStr>);
 
@@ -44,7 +44,7 @@ impl From<SharedString> for AppString {
 
 impl From<AppString> for SharedString {
     fn from(value: AppString) -> Self {
-        SharedString::new(value.0.as_str())
+        SharedString::new(value.0.into_inner())
     }
 }
 

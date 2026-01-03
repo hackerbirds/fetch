@@ -48,9 +48,9 @@ impl GpuiSearchEngine {
                     // New search executed on a different task,
                     // abort this one
                     return;
-                } else if let Some(www) = w.upgrade() {
+                } else if let Some(view) = w.upgrade() {
                     // Update search results and notify UI
-                    let _ = www.update(cx, |this, cx| {
+                    let _ = view.update(cx, |this, cx| {
                         let search_results = rx.borrow().1.clone();
                         this.results = search_results;
                         cx.notify();

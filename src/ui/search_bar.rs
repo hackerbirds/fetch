@@ -1,5 +1,3 @@
-use std::ops::Neg;
-
 use gpui::prelude::FluentBuilder;
 use gpui::{
     AppContext, Context, Corners, ElementId, Entity, Fill, InteractiveElement, IntoElement,
@@ -18,11 +16,18 @@ use crate::{EnterPressed, EscPressed, OpenSettings, TabBackSelectApp, TabSelectA
 pub struct SearchBar {
     search_engine: Entity<GpuiSearchEngine>,
     input_state: Entity<InputState>,
-    all_queries: Vec<AppString>,
+    query_history: Vec<AppString>,
     #[expect(unused)]
     subscriptions: Vec<Subscription>,
-    selected_result: usize,
-    hovered_result: usize,
+    /// The index of the first result the user has scrolled to
+    scrolled_result_idx: usize,
+    /// The offset of the hovered/selected result. This means that
+    /// if the user has scrolled 3 indices down, but selected the second
+    /// app result (offset 1),
+    /// then `scrolled_result_idx` = 3 and `hovered_offset_idx` = 1
+    ///
+    /// `scrolled_result_idx` + `hovered_offset_idx` = selected app index
+    hovered_offset_idx: usize,
     scroll_handle: ScrollHandle,
 }
 
@@ -30,7 +35,9 @@ pub struct SearchBar {
 /// to how many search results at once are physically able to
 /// appear in the GUI (whose window height is a fixed size)
 const MAX_RENDERED_ELS: usize = 4;
+/// The height of the element containing a search result (icon + app name)
 const RESULT_EL_HEIGHT: usize = 44;
+/// The padding (all sides) of the element containing a search result (icon + app name)
 const RESULT_EL_PADDING: usize = 8;
 
 impl SearchBar {
@@ -45,7 +52,7 @@ impl SearchBar {
             is
         });
 
-        let all_queries = vec![];
+        let query_history = vec![];
 
         let subscriptions = vec![cx.subscribe_in(&input_state, window, {
             let input_state = input_state.clone();
@@ -57,9 +64,9 @@ impl SearchBar {
                     this.search_engine.update(cx, |this, cx| {
                         this.deferred_search(cx, window, value.clone());
                     });
-                    this.selected_result = 0;
+                    this.scrolled_result_idx = 0;
 
-                    this.all_queries.push(value);
+                    this.query_history.push(value);
                     cx.notify();
                 }
             }
@@ -68,10 +75,10 @@ impl SearchBar {
         Self {
             search_engine,
             input_state,
-            all_queries,
+            query_history,
             subscriptions,
-            selected_result: 0,
-            hovered_result: 0,
+            scrolled_result_idx: 0,
+            hovered_offset_idx: 0,
             scroll_handle: ScrollHandle::new(),
         }
     }
@@ -91,14 +98,16 @@ impl Render for SearchBar {
             .on_action(cx.listener(|this, &TabSelectApp, _, cx| {
                 let results_len = this.search_engine.read(cx).results.len();
                 if results_len > 0 {
-                    let wrap_around_needed = this.selected_result + this.hovered_result + 1 >= results_len;
-                    if !wrap_around_needed && this.hovered_result <MAX_RENDERED_ELS-1 {
-                        this.hovered_result += 1;
-                    } else if wrap_around_needed {
-                        this.selected_result = 0;
-                        this.hovered_result = 0;
+                    let selected_app_idx = this.scrolled_result_idx + this.hovered_offset_idx;
+                    // User scrolled down at the last index, so we need to loop back up
+                    let wrap_around_needed = selected_app_idx > results_len;
+                    if wrap_around_needed {
+                        this.scrolled_result_idx = 0;
+                        this.hovered_offset_idx = 0;
+                    } else if this.hovered_offset_idx < (MAX_RENDERED_ELS - 1) {
+                        this.hovered_offset_idx += 1;
                     } else {
-                        this.selected_result += 1;
+                        this.scrolled_result_idx += 1;
                     }
                 }
                 cx.notify();
@@ -106,11 +115,11 @@ impl Render for SearchBar {
             .on_action(cx.listener(|this, &TabBackSelectApp, _, cx| {
                 let results_len = this.search_engine.read(cx).results.len();
                 if results_len > 0 {
-                    if this.hovered_result > 0 {
-                        this.hovered_result -= 1;
+                    if this.hovered_offset_idx > 0 {
+                        this.hovered_offset_idx -= 1;
                     } else {
-                        this.selected_result =
-                            (this.selected_result + results_len - 1).rem_euclid(results_len);
+                        this.scrolled_result_idx =
+                            (this.scrolled_result_idx + results_len - 1).rem_euclid(results_len);
                     }
                 }
                 cx.notify();
@@ -130,19 +139,23 @@ impl Render for SearchBar {
                 cx.notify();
             }))
             .on_action(cx.listener(|this, &EnterPressed, window, cx| {
-                let app_opt = this
+                let selected_app_idx = this.scrolled_result_idx + this.hovered_offset_idx;
+                let app_opt: Option<crate::apps::App> = this
                     .search_engine
                     .read(cx)
                     .results
-                    .get(this.selected_result)
+                    .get(selected_app_idx)
+                    // Cloning removes `cx` lifetime
                     .cloned();
+
                 if let Some(app) = app_opt {
                     cx.open_with_system(app.path.as_path());
                     this.search_engine.update(cx, |search_engine, cx| {
-                        search_engine.selected(cx, this.all_queries.clone(), app);
+                        search_engine.selected(cx, this.query_history.clone(), app);
                     });
                     window.remove_window();
                 }
+
                 cx.notify();
             }))
             .child(
@@ -170,88 +183,89 @@ impl Render for SearchBar {
                             .children(self
                                 .search_engine
                                 .read(cx)
-                                .results.clone().into_iter().skip(self.selected_result)
+                                .results
+                                .clone()
+                                .into_iter()
+                                .skip(self.scrolled_result_idx)
                                 .take(MAX_RENDERED_ELS)
                                 .map(|app| GpuiApp::load(app, cx)).enumerate().map(|(i, app)| {
-                                let app_name = SharedString::from(app.name.clone());
-                                let path = app.path.clone();
-                                let app_icon = app.icon.clone();
-                                #[allow(
-                                    clippy::cast_precision_loss,
-                                    reason = "we don't need high precision, div el height is tiny"
-                                )]
-                                div()
-                                    .id(ElementId::named_usize(app_name.clone(), i))
-                                    .flex()
-                                    .items_center()
-                                    .p(Pixels::from(RESULT_EL_PADDING))
-                                    .min_h(Pixels::from(RESULT_EL_HEIGHT))
-                                    .h(Pixels::from(RESULT_EL_HEIGHT))
-                                    .pl(Pixels::from(40.0 / ((self.hovered_result.abs_diff(i) + 1) as f64).powf(1.67)))
-                                    .when(i == self.hovered_result, |mut this| {
-                                        this.style().background =
-                                            Some(Fill::Color(cx.theme().secondary_hover.into()));
+                                    let GpuiApp { name, path, icon } = app.clone();
+                                    let app_name = SharedString::from(name);
 
-                                        self.scroll_handle.set_offset(Point::new(
-                                            0f64.into(),
-                                            // 32px: height of el
-                                            // 8px: padding top
-                                            // 8px: padding bottom
-                                            ((i * (RESULT_EL_HEIGHT + 2 * RESULT_EL_PADDING))
-                                                as f64)
-                                                .neg()
-                                                .into(),
-                                        ));
+                                    #[allow(
+                                        clippy::cast_precision_loss,
+                                        reason = "we don't need high precision, div el height is tiny"
+                                    )]
+                                    div()
+                                        .id(ElementId::named_usize(app_name.clone(), i))
+                                        .flex()
+                                        .items_center()
+                                        .p(Pixels::from(RESULT_EL_PADDING))
+                                        .min_h(Pixels::from(RESULT_EL_HEIGHT))
+                                        .h(Pixels::from(RESULT_EL_HEIGHT))
+                                        .pl(Pixels::from(40.0 / ((self.hovered_offset_idx.abs_diff(i) + 1) as f64).powf(1.67)))
+                                        .when(i == self.hovered_offset_idx, |mut this| {
+                                            this.style().background =
+                                                Some(Fill::Color(cx.theme().secondary_hover.into()));
 
-                                        this.pl_3().child(
+                                            self.scroll_handle.set_offset(Point::new(
+                                                0f64.into(),
+                                                // RESULT_EL_HEIGHT: height of el
+                                                // RESULT_EL_PADDING: padding top
+                                                // RESULT_EL_PADDING: padding bottom
+                                                Pixels::from((i * (RESULT_EL_HEIGHT + 2 * RESULT_EL_PADDING))
+                                                    as f64).negate(),
+                                            ));
+
+                                            this.pl_3().child(
+                                                div()
+                                                    .relative()
+                                                    .left(Pixels::from(RESULT_EL_PADDING).negate())
+                                                    .w_6()
+                                                    .h_6()
+                                                    .ml_2()
+                                                    .bg(cx.theme().sidebar_border)
+                                                    .border_1()
+                                                    .border_color(cx.theme().window_border)
+                                                    .rounded_md()
+                                                    .flex()
+                                                    .items_center()
+                                                    .justify_center()
+                                                    .pt_1()
+                                                    .child("↵"),
+                                            )
+                                        })
+                                        .hover(|style| style.bg(cx.theme().secondary_hover))
+                                        .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                                            cx.open_with_system(path.as_path());
+                                            window.remove_window();
+                                        })
+                                        .on_hover(cx.listener(move |this, hovered, _window, cx| {
+                                            if *hovered {
+                                                this.hovered_offset_idx = i;
+                                                cx.notify();
+                                            }
+                                        }))
+                                        .child(
                                             div()
-                                                .relative()
-                                                .left(Pixels::from(RESULT_EL_PADDING).negate())
-                                                .w_6()
-                                                .h_6()
-                                                .ml_2()
-                                                .bg(cx.theme().sidebar_border)
-                                                .border_1()
-                                                .border_color(cx.theme().window_border)
-                                                .rounded_md()
                                                 .flex()
                                                 .items_center()
-                                                .justify_center()
-                                                .pt_1()
-                                                .child("↵"),
+                                                .gap_1()
+                                                .when_some(icon, |this, icon_img| {
+                                                    this.child(
+                                                        img(icon_img)
+                                                            .h(Pixels::from(
+                                                                RESULT_EL_HEIGHT - RESULT_EL_PADDING,
+                                                            ))
+                                                            .w(Pixels::from(
+                                                                RESULT_EL_HEIGHT - RESULT_EL_PADDING,
+                                                            ))
+                                                            .p(Pixels::from(RESULT_EL_PADDING)),
+                                                    )
+                                                })
+                                                .child(div().child(app_name).text_xl()),
                                         )
-                                    })
-                                    .hover(|style| style.bg(cx.theme().secondary_hover))
-                                    .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                                        cx.open_with_system(path.as_path());
-                                        window.remove_window();
-                                    })
-                                    .on_hover(cx.listener(move |this, hovered, _window, cx| {
-                                        if *hovered {
-                                            this.hovered_result = i;
-                                            cx.notify();
-                                        }
-                                    }))
-                                    .child(
-                                        div()
-                                            .flex()
-                                            .items_center()
-                                            .gap_1()
-                                            .when_some(app_icon, |this, icon_img| {
-                                                this.child(
-                                                    img(icon_img)
-                                                        .h(Pixels::from(
-                                                            RESULT_EL_HEIGHT - RESULT_EL_PADDING,
-                                                        ))
-                                                        .w(Pixels::from(
-                                                            RESULT_EL_HEIGHT - RESULT_EL_PADDING,
-                                                        ))
-                                                        .p(Pixels::from(RESULT_EL_PADDING)),
-                                                )
-                                            })
-                                            .child(div().child(app_name).text_xl()),
-                                    )
-                            })),
+                                })),
                     ),
             )
     }
