@@ -1,6 +1,6 @@
 [package]
 name = "Fetch"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2024"
 rust-version = "1.91.0"
 
@@ -36,6 +36,6 @@ clippy = { pedantic = "deny" }
 name = "Fetch"
 icon = ["icon.png", "icon@2x.png"]
 identifier = "org.birds.fetch"
-version = "0.7.0"
+version = "0.8.0"
 category = "Developer Tool"
 short_description = "A minimalistic and super fast app launcher."
