@@ -1,16 +1,16 @@
 use gpui::prelude::FluentBuilder;
 use gpui::{
     AppContext, Context, Corners, ElementId, Entity, Fill, InteractiveElement, IntoElement,
-    MouseButton, Negate, ParentElement, Pixels, Point, Render, ScrollHandle, SharedString,
+    MouseButton, Negate, ParentElement, Pixels, Point, Render, ScrollHandle,
     StatefulInteractiveElement, Styled, Subscription, Window, div, img,
 };
 use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{ActiveTheme, StyledExt};
 
 use crate::apps::app_string::AppString;
-use crate::extensions::SearchEngine;
+use crate::extensions::{SearchEngine, SearchResult};
 use crate::fs::config::config_file_path;
-use crate::ui::gpui_app::GpuiApp;
+use crate::ui::gpui_app::{GpuiApp, GpuiAppLoader};
 use crate::ui::search_engine::GpuiSearchEngine;
 use crate::{EnterPressed, EscPressed, OpenSettings, TabBackSelectApp, TabSelectApp};
 
@@ -29,6 +29,7 @@ pub struct SearchBar<SE: SearchEngine> {
     /// `scrolled_result_idx` + `hovered_offset_idx` = selected app index
     hovered_offset_idx: usize,
     scroll_handle: ScrollHandle,
+    gpui_app_renderer: GpuiAppLoader,
 }
 
 /// The number of elements to render in gpui. This corresponds
@@ -75,6 +76,7 @@ impl<SE: SearchEngine> SearchBar<SE> {
             scrolled_result_idx: 0,
             hovered_offset_idx: 0,
             scroll_handle: ScrollHandle::new(),
+            gpui_app_renderer: GpuiAppLoader::default(),
         }
     }
 }
@@ -135,15 +137,14 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
             }))
             .on_action(cx.listener(|this, &EnterPressed, window, cx| {
                 let selected_app_idx = this.scrolled_result_idx + this.hovered_offset_idx;
-                let app_opt: Option<crate::apps::App> = this
+                let app_opt = this
                     .search_engine
                     .read(cx)
-                    .results
-                    .get(selected_app_idx)
+                    .results.get(selected_app_idx)
                     // Cloning removes `cx` lifetime
                     .cloned();
 
-                if let Some(app) = app_opt {
+                if let Some(SearchResult::Executable(app)) = app_opt {
                     cx.open_with_system(app.path.as_path());
                     this.search_engine.update(cx, |search_engine, cx| {
                         search_engine.after_search(cx, Some(app));
@@ -179,20 +180,16 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
                                 .search_engine
                                 .read(cx)
                                 .results
-                                .clone()
-                                .into_iter()
+                                .iter()
                                 .skip(self.scrolled_result_idx)
                                 .take(MAX_RENDERED_ELS)
-                                .map(|app| GpuiApp::load(app, cx)).enumerate().map(|(i, app)| {
-                                    let GpuiApp { name, path, icon } = app.clone();
-                                    let app_name = SharedString::from(name);
-
+                                .map(|app| self.gpui_app_renderer.load(app, cx)).enumerate().map(|(i, GpuiApp { name, path, icon })| {
                                     #[allow(
                                         clippy::cast_precision_loss,
                                         reason = "we don't need high precision, div el height is tiny"
                                     )]
                                     div()
-                                        .id(ElementId::named_usize(app_name.clone(), i))
+                                        .id(ElementId::named_usize(name.clone(), i))
                                         .flex()
                                         .items_center()
                                         .p(Pixels::from(RESULT_EL_PADDING))
@@ -258,7 +255,7 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
                                                             .p(Pixels::from(RESULT_EL_PADDING)),
                                                     )
                                                 })
-                                                .child(div().child(app_name).text_xl()),
+                                                .child(div().child(name).text_xl()),
                                         )
                                 })),
                     ),

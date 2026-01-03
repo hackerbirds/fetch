@@ -1,18 +1,14 @@
 use std::sync::Arc;
 
-use gpui::{AppContext, Entity, EventEmitter};
+use gpui::{AppContext, Entity};
 
 use crate::{
-    apps::{App, app_string::AppString},
-    extensions::{DeferredReceiver, DeferredToken, SearchEngine},
+    apps::{ExecutableApp, app_string::AppString},
+    extensions::{DeferredReceiver, DeferredToken, SearchEngine, SearchResult},
 };
 
-pub enum SearchEvent {
-    Results(Vec<App>),
-}
-
 pub struct GpuiSearchEngine<SE: SearchEngine> {
-    pub results: Vec<App>,
+    pub(super) results: Vec<SearchResult>,
     engine: Arc<SE>,
 }
 
@@ -26,8 +22,8 @@ impl<SE: SearchEngine> GpuiSearchEngine<SE> {
         }
     }
 
-    pub fn blocking_search(&mut self, cx: &mut gpui::Context<'_, Self>, query: AppString) {
-        cx.emit(SearchEvent::Results(self.engine.blocking_search(query)));
+    pub fn blocking_search(&mut self, query: AppString) {
+        self.engine.blocking_search(query);
     }
 
     pub fn deferred_search(
@@ -65,14 +61,16 @@ impl<SE: SearchEngine> GpuiSearchEngine<SE> {
         .detach();
     }
 
-    pub fn after_search(&self, cx: &mut gpui::Context<'_, Self>, opened_app: Option<App>) {
+    pub fn after_search(
+        &self,
+        cx: &mut gpui::Context<'_, Self>,
+        opened_app: Option<ExecutableApp>,
+    ) {
         let engine = self.engine.clone();
 
         cx.background_spawn(async move {
-            engine.after_search(opened_app);
+            engine.after_search(opened_app.map(SearchResult::Executable));
         })
         .detach();
     }
 }
-
-impl<SE: SearchEngine> EventEmitter<SearchEvent> for GpuiSearchEngine<SE> {}

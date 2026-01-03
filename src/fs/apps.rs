@@ -9,9 +9,9 @@ use icns::IconFamily;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rootcause::{prelude::Report, report};
 
-use crate::{apps::App, fs::config::Configuration};
+use crate::{apps::ExecutableApp, fs::config::Configuration};
 
-pub type AppList = Box<[App]>;
+pub type AppList = Box<[ExecutableApp]>;
 
 #[cfg(target_os = "macos")]
 pub(crate) const APPLICATION_DIRS: [&str; 6] = [
@@ -62,11 +62,11 @@ pub fn apps(config: &Configuration) -> AppList {
         .clone()
         .into_par_iter()
         .filter_map(|p| read_app_file(p).ok())
-        .collect::<Vec<App>>()
+        .collect::<Vec<ExecutableApp>>()
         .into()
 }
 
-pub fn read_app_file(path: PathBuf) -> Result<App, Report> {
+pub fn read_app_file(path: PathBuf) -> Result<ExecutableApp, Report> {
     if cfg!(target_os = "macos") {
         // Because try blocks aren't stabilized, make this a function
         // so that error propagation stops at the function scope if icon
@@ -149,26 +149,12 @@ pub fn read_app_file(path: PathBuf) -> Result<App, Report> {
                     .attach("This file path isn't UTF-8 compatible (are you using a supported OS?)")
             })?;
 
-        let icon_png_img = match try_get_icon_data(&name, &path) {
-            Ok(icon_data) => icon_data,
-            #[cfg_attr(
-                not(debug_assertions),
-                allow(unused_variables, reason = "Debug-only log")
-            )]
-            Err(report) => {
-                println!(
-                    "{}",
-                    report.context(format!("Could not load icon for app \"{name}\""))
-                );
+        let icon_png_data = try_get_icon_data(&name, &path).ok();
 
-                Vec::new()
-            }
-        };
-
-        Ok(App {
+        Ok(ExecutableApp {
             name: name.into(),
             path,
-            icon_png_img,
+            icon_png_data,
         })
     } else {
         todo!("Support for non-macOS")

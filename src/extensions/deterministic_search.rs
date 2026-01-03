@@ -20,8 +20,8 @@ use tokio::sync::watch::channel;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
-    apps::{App, AppName, app_string::AppString, app_substr::AppSubstr},
-    extensions::{DeferredReceiver, DeferredSender, DeferredToken, SearchEngine},
+    apps::{AppName, ExecutableApp, app_string::AppString, app_substr::AppSubstr},
+    extensions::{DeferredReceiver, DeferredSender, DeferredToken, SearchEngine, SearchResult},
     fs::{
         apps::{AppList, apps},
         config::Configuration,
@@ -29,12 +29,25 @@ use crate::{
     },
 };
 
+/// This simple search engine works by caching
+/// every substring of every app into a hash table,
+/// resulting in effectively O(1) lookup for any search.
+///
+/// Search results are then sorted by several factors:
+/// - Alphabetical order
+/// - How close the substring is to the app name, which we call
+///   "beginning distance". For instance, looking for "code" might
+///   result in "Visual Studio Code" or "Xcode", but the user likely
+///   meant to look for the former, so it appears first.
+/// - Learned searches. If a user previously searched for "Foo", then
+///   typing "F" or "Fo" will result in "Foo" appearing first, even
+///   though another app named "Font" would have otherwise been.
 #[derive(Debug, Clone)]
 pub struct DeterministicSearchEngine {
     db: Arc<Mutex<FilesystemPersistence>>,
     config: Configuration,
     apps: Arc<Mutex<AppList>>,
-    learned_substring_index: Arc<HashMap<AppString, App>>,
+    learned_substring_index: Arc<HashMap<AppString, ExecutableApp>>,
     substring_index: Arc<HashMap<AppString, Vec<AppName>>>,
 
     /// Keeps track of the latest search query.
@@ -55,17 +68,19 @@ pub struct DeterministicSearchEngine {
 }
 
 impl SearchEngine for DeterministicSearchEngine {
-    fn blocking_search(&self, query: AppString) -> Vec<App> {
+    fn blocking_search(&self, query: AppString) -> Vec<SearchResult> {
         self.query_history.push(query.clone());
 
-        let mut filtered_apps: Vec<App> = self.apps.lock().expect("no poison").to_vec();
-
-        filtered_apps.par_sort_by_cached_key(|app| app.name.clone());
-
-        filtered_apps = filtered_apps
+        let mut filtered_apps: Vec<ExecutableApp> = self
+            .apps
+            .lock()
+            .expect("no poison")
+            .to_vec()
             .into_par_iter()
             .filter(|app| self.is_query_substring_of_app_name(&query, &app.name))
             .collect();
+
+        filtered_apps.par_sort_by_cached_key(|app| app.name.clone());
 
         filtered_apps.par_sort_by_cached_key(|app| {
             if query == app.name {
@@ -90,6 +105,9 @@ impl SearchEngine for DeterministicSearchEngine {
         });
 
         filtered_apps
+            .into_par_iter()
+            .map(SearchResult::Executable)
+            .collect()
     }
 
     fn deferred_search(&self, query: AppString) -> (DeferredToken, DeferredReceiver) {
@@ -101,10 +119,10 @@ impl SearchEngine for DeterministicSearchEngine {
         (token, rx)
     }
 
-    fn after_search(&self, opened_app: Option<App>) {
+    fn after_search(&self, opened_app: Option<SearchResult>) {
         let query_history = self.query_history.pop_all();
 
-        if let Some(app) = opened_app {
+        if let Some(SearchResult::Executable(app)) = opened_app {
             {
                 let guard = Guard::new();
                 query_history.iter(&guard).for_each(|query| {
