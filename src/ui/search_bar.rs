@@ -63,9 +63,12 @@ impl<SE: SearchEngine> SearchBar<SE> {
                     let value: AppString = value.into();
 
                     this.search_engine.update(cx, |this, cx| {
-                        this.deferred_search(cx, window, value.clone());
+                        this.deferred_search(cx, window, value);
                     });
+
                     this.scrolled_result_idx = 0;
+                    this.hovered_offset_idx = 0;
+
                     cx.notify();
                 }
             }

@@ -34,7 +34,7 @@ impl<SE: SearchEngine> GpuiSearchEngine<SE> {
     ) {
         cx.spawn_in(window, async move |w, cx| {
             let (token, mut rx): (DeferredToken, DeferredReceiver) = w
-                .read_with(cx, |this, _cx| this.engine.deferred_search(query.clone()))
+                .read_with(cx, |this, _cx| this.engine.deferred_search(query))
                 .expect("entity has not been released");
 
             loop {
