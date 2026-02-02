@@ -14,6 +14,7 @@ pub type AppName = AppString;
 pub struct ExecutableApp {
     pub(crate) name: AppName,
     pub(crate) path: PathBuf,
+    pub(crate) is_open: bool,
     pub(crate) icon_png_data: Option<Vec<u8>>,
 }
 

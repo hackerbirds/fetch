@@ -2,11 +2,10 @@ use std::{
     fs::{DirEntry, File},
     io::BufReader,
     path::{Path, PathBuf},
-    str::FromStr,
+    process::Command,
 };
 
 use icns::IconFamily;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rootcause::{prelude::Report, report};
 
 use crate::{apps::ExecutableApp, fs::config::Configuration};
@@ -41,32 +40,71 @@ pub fn is_dir_entry_app(dir_entry: &DirEntry) -> bool {
 }
 
 #[inline]
+#[must_use]
 pub fn apps(config: &Configuration) -> AppList {
-    let default_app_paths = config
-        .applications
-        .iter()
-        .filter_map(|app_path| PathBuf::from_str(app_path).ok());
+    if cfg!(target_os = "macos") {
+        let running_apps = {
+            let lsappinfo_bytes = Command::new("lsappinfo")
+                .arg("list")
+                .output()
+                .unwrap()
+                .stdout;
 
-    let app_paths: Vec<PathBuf> = config
-        .application_dirs
-        .iter()
-        .filter_map(|app_dir| std::fs::read_dir(app_dir).ok())
-        .flat_map(IntoIterator::into_iter)
-        .filter_map(Result::ok)
-        .filter_map(|entry| is_dir_entry_app(&entry).then_some(entry))
-        .map(|app| app.path())
-        .chain(default_app_paths)
-        .collect();
+            let lsappinfo_res = String::from_utf8(lsappinfo_bytes).unwrap();
 
-    app_paths
-        .clone()
-        .into_par_iter()
-        .filter_map(|p| read_app_file(p).ok())
-        .collect::<Vec<ExecutableApp>>()
-        .into()
+            lsappinfo_res
+                .split('\n')
+                .filter_map(|p| {
+                    const BUNDLE_PATH_PREFIX: &str = "    bundle path=";
+                    if p.starts_with(BUNDLE_PATH_PREFIX) {
+                        // TODO: Use trim_prefix + trim_suffix when stabilized
+                        // https://github.com/rust-lang/rust/issues/142312
+
+                        let mut bundle_path = p.to_owned();
+
+                        // remove prefix + double quote of path
+                        bundle_path = bundle_path.split_off(BUNDLE_PATH_PREFIX.len() + 1);
+                        // remove double quote of path
+                        let _ = bundle_path.split_off(bundle_path.len() - 1);
+                        Some(bundle_path)
+                    } else {
+                        None
+                    }
+                })
+                .map(PathBuf::from)
+                .collect::<Vec<PathBuf>>()
+        };
+
+        let mut cmd = Command::new("mdfind");
+        cmd.arg("kMDItemKind == 'Application'");
+
+        for path in &config.application_dirs {
+            cmd.arg("-onlyin");
+            cmd.arg(path);
+        }
+
+        for app in &config.applications {
+            cmd.arg("-onlyin");
+            cmd.arg(app);
+        }
+
+        let mdfind_bytes = cmd.output().unwrap().stdout;
+
+        let apps = String::from_utf8(mdfind_bytes).unwrap();
+
+        apps.split('\n')
+            .filter_map(|p| read_app_file(p.into(), &running_apps).ok())
+            .collect::<Vec<ExecutableApp>>()
+            .into()
+    } else {
+        todo!("Support for non-macOS platforms")
+    }
 }
 
-pub fn read_app_file(path: PathBuf) -> Result<ExecutableApp, Report> {
+pub fn read_app_file(
+    path: PathBuf,
+    running_app_paths: &[PathBuf],
+) -> Result<ExecutableApp, Report> {
     if cfg!(target_os = "macos") {
         // Because try blocks aren't stabilized, make this a function
         // so that error propagation stops at the function scope if icon
@@ -153,6 +191,7 @@ pub fn read_app_file(path: PathBuf) -> Result<ExecutableApp, Report> {
 
         Ok(ExecutableApp {
             name: name.into(),
+            is_open: running_app_paths.contains(&path),
             path,
             icon_png_data,
         })

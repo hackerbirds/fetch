@@ -20,6 +20,7 @@ const CONFIG_FILE_NAME: &str = "config.json";
 pub struct Configuration {
     pub open_search_hotkey: HotkeyString,
     pub launch_on_boot: bool,
+    pub prioritize_open_apps: bool,
     pub applications: Vec<String>,
     pub application_dirs: Vec<String>,
 }
@@ -37,6 +38,7 @@ impl Default for Configuration {
         Self {
             open_search_hotkey: DEFAULT_HOTKEY.to_string(),
             launch_on_boot: true,
+            prioritize_open_apps: true,
             applications: default_applications(),
             application_dirs: default_application_dirs(),
         }

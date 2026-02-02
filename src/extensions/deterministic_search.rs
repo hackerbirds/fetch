@@ -104,6 +104,10 @@ impl SearchEngine for DeterministicSearchEngine {
             )
         });
 
+        if self.config.prioritize_open_apps {
+            filtered_apps.par_sort_by_key(|app| !app.is_open);
+        }
+
         filtered_apps
             .into_par_iter()
             .map(SearchResult::Executable)
@@ -143,15 +147,17 @@ impl SearchEngine for DeterministicSearchEngine {
         }
 
         self.deferred_token.store(0, Ordering::Release);
-        // Check for modified apps, update if needed.
-        let applist = self.apps.clone();
 
-        let new_apps = apps(&self.config);
-        let mut current_apps = applist.lock().expect("no lock poisoning");
-        if new_apps.ne(&current_apps) {
-            let _ = std::mem::replace(&mut *current_apps, new_apps);
+        // Check for modified apps, update if needed.
+        {
+            let applist = self.apps.clone();
+            let new_apps = apps(&self.config);
+            let mut current_apps = applist.lock().expect("no lock poisoning");
+            if new_apps.ne(&current_apps) {
+                let _ = std::mem::replace(&mut *current_apps, new_apps);
+            }
         }
-        drop(current_apps);
+
         self.index_apps();
     }
 }

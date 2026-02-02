@@ -204,7 +204,7 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
                                 .iter()
                                 .skip(self.scrolled_result_idx)
                                 .take(MAX_RENDERED_ELS + 1)
-                                .map(|app| self.gpui_app_renderer.load(app, cx)).enumerate().map(|(i, GpuiApp { name, path, icon })| {
+                                .map(|app| self.gpui_app_renderer.load(app, cx)).enumerate().map(|(i, GpuiApp { name, path, is_open, icon })| {
                                     #[allow(
                                         clippy::cast_precision_loss,
                                         reason = "we don't need high precision, div el height is tiny"
@@ -276,7 +276,9 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
                                                             .p(Pixels::from(RESULT_EL_PADDING)),
                                                     )
                                                 })
-                                                .child(div().child(name).text_xl()),
+                                                .child(div().child(name).text_xl().when(!is_open, |this| {
+                                                    this.opacity(0.5f32)
+                                                })),
                                         )
                                 })),
                     ),

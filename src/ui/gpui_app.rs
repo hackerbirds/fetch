@@ -9,6 +9,7 @@ use crate::extensions::SearchResult;
 pub struct GpuiApp {
     pub(super) name: SharedString,
     pub(super) path: PathBuf,
+    pub(super) is_open: bool,
     pub(super) icon: Option<Arc<RenderImage>>,
 }
 
@@ -40,6 +41,7 @@ impl GpuiAppLoader {
                     let gpui_app = GpuiApp {
                         name: SharedString::from(executable_app.name),
                         path: executable_app.path,
+                        is_open: executable_app.is_open,
                         icon,
                     };
 
