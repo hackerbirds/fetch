@@ -1,15 +1,12 @@
 # Fetch 
 
-Fetch is an app launcher for macOS. It is designed to be extremely quick to use and be as little in the way as possible: it has responsive keyboard navigation, and no perceptible latency when loading or searching an app. Switch between apps without thinking about it.
-
-It is still a work in progress, though most functionality is implemented. We aim to support Windows and Linux in the future, and you can view our progress in the [roadmap](https://github.com/users/hackerbirds/projects/3). The current plan is to reach a stable 1.0 release, after which Fetch will be considered complete and will not receive any new features (besides bug fixes).
+Fetch is an opinionated app launcher for macOS. Launch or switch between apps without thinking about it. It is designed to be extremely quick, and as little in the way as possible.
 
 ## Features
 
-- **Fast**: Fetch launches instantly. Searches happen instantly.
-- **Minimalistic**: it does one thing and does it really well.
-- **Deterministic**: no unexpected behavior. The search algorithm learns from your past usage. Gone are the days of Spotlight failing on you.
-- **Optimized for keyboard navigation**: You don't need to use your trackpad to switch between apps.
+- **Fast**: Launch, Search, Enter, without having to worry about latency. Fetch is so fast you won't feel the slightest amount of lag.
+- **Minimalistic**: Fetch does one thing and does it well: search and launch apps. No bloated features that get in your way.
+- **Optimized for keyboard navigation**: No need to move your hands off the keyboard. You can navigate Fetch easily without using the trackpad--that's too slow!.
 
 ## Easy as 1, 2, 3
 
@@ -39,3 +36,7 @@ cargo install cargo-bundle
 chmod +x bundle.sh
 ./bundle.sh
 ```
+
+## Roadmap
+
+It is still a work in progress, though most functionality is implemented. We aim to support Windows and Linux in the future, and you can view our progress in the [roadmap](https://github.com/users/hackerbirds/projects/3). The current plan is to reach a stable 1.0 release, after which Fetch will be considered complete and will not receive any new features (besides bug fixes).
