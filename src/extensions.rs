@@ -16,6 +16,7 @@ pub enum SearchResult {
 }
 
 pub trait SearchEngine: Send + Sync + 'static {
+    fn preload(&self);
     fn blocking_search(&self, query: AppString) -> Vec<SearchResult>;
     fn deferred_search(&self, query: AppString) -> (DeferredToken, DeferredReceiver) {
         let res = self.blocking_search(query);

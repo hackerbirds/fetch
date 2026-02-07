@@ -1,5 +1,6 @@
 pub mod app_string;
 pub mod app_substr;
+pub mod index;
 
 use std::path::PathBuf;
 
@@ -8,6 +9,20 @@ use serde::{Deserialize, Serialize};
 use self::app_string::AppString;
 
 pub type AppName = AppString;
+pub type AppList = Box<[ExecutableApp]>;
+
+#[cfg(target_os = "macos")]
+pub(crate) const APPLICATION_DIRS: [&str; 6] = [
+    "/Applications",
+    "/Applications/Utilities",
+    "/System/Applications",
+    "/System/Applications/Utilities",
+    "/System/Library/CoreServices/Applications",
+    "~/Applications",
+];
+
+#[cfg(target_os = "macos")]
+pub(crate) const APPLICATIONS: [&str; 1] = ["/System/Library/CoreServices/Finder.app"];
 
 /// An executable app the user can launch.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]

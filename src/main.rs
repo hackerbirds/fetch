@@ -6,6 +6,8 @@
     clippy::missing_panics_doc,
     reason = "Not a library + Usage of `except` over `unwrap` is enforced, facilitating panic auditing"
 )]
+use std::sync::Arc;
+
 use crate::extensions::deterministic_search::DeterministicSearchEngine;
 use crate::fs::config::Configuration;
 use crate::ui::search_bar::SearchBar;
@@ -39,7 +41,7 @@ actions!(
 
 fn main() -> Result<(), Report> {
     let manager = GlobalHotKeyManager::new()?;
-    let config = Configuration::read_from_fs()?;
+    let config = Arc::new(Configuration::read_from_fs()?);
     let hotkey = config.hotkey_config()?;
 
     manager.register(hotkey)?;
@@ -78,8 +80,6 @@ fn main() -> Result<(), Report> {
         // This must be called before using any GPUI Component features.
         gpui_component::init(cx);
 
-        cx.set_global(config);
-
         let display_center = cx
             .primary_display()
             .expect("Display exists")
@@ -87,16 +87,13 @@ fn main() -> Result<(), Report> {
             .center();
 
         cx.spawn(async move |cx| {
-            let search_engine = cx
-                .read_global::<Configuration, DeterministicSearchEngine>(|config, _| {
-                    match DeterministicSearchEngine::build(config) {
-                        Ok(engine) => engine,
-                        Err(report) => {
-                            panic!("{}", report.context("Could not build search engine"))
-                        }
-                    }
-                })
-                .expect("If search engine can't be build, there is nothing to be doing");
+            let search_engine = match DeterministicSearchEngine::build(config) {
+                Ok(engine) => engine,
+                Err(report) => {
+                    panic!("{}", report.context("Could not build search engine"))
+                }
+            };
+
             let search_engine_entity = cx
                 .new(|_cx| GpuiSearchEngine::new(search_engine))
                 .expect("Search engine building is infallible");

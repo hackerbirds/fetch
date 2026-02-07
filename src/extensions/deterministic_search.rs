@@ -11,7 +11,7 @@ use std::{
 };
 
 use rayon::{
-    iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
+    iter::{IntoParallelIterator, ParallelIterator},
     slice::ParallelSliceMut,
 };
 use rootcause::Report;
@@ -20,10 +20,9 @@ use tokio::sync::watch::channel;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
-    apps::{AppName, ExecutableApp, app_string::AppString, app_substr::AppSubstr},
+    apps::{AppName, ExecutableApp, app_string::AppString, app_substr::AppSubstr, index::AppIndex},
     extensions::{DeferredReceiver, DeferredSender, DeferredToken, SearchEngine, SearchResult},
     fs::{
-        apps::{AppList, apps},
         config::Configuration,
         db::{AppPersistence, FilesystemPersistence},
     },
@@ -45,8 +44,8 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct DeterministicSearchEngine {
     db: Arc<Mutex<FilesystemPersistence>>,
-    config: Configuration,
-    apps: Arc<Mutex<AppList>>,
+    config: Arc<Configuration>,
+    app_index: AppIndex,
     learned_substring_index: Arc<HashMap<AppString, ExecutableApp>>,
     substring_index: Arc<HashMap<AppString, Vec<AppName>>>,
 
@@ -71,12 +70,12 @@ impl SearchEngine for DeterministicSearchEngine {
     fn blocking_search(&self, query: AppString) -> Vec<SearchResult> {
         self.query_history.push(query.clone());
 
+        let guard = Guard::new();
+
         let mut filtered_apps: Vec<ExecutableApp> = self
-            .apps
-            .lock()
-            .expect("no poison")
-            .to_vec()
-            .into_par_iter()
+            .app_index
+            .iter(&guard)
+            .map(|(_, app)| app.clone())
             .filter(|app| self.is_query_substring_of_app_name(&query, &app.name))
             .collect();
 
@@ -148,24 +147,18 @@ impl SearchEngine for DeterministicSearchEngine {
 
         self.deferred_token.store(0, Ordering::Release);
 
-        // Check for modified apps, update if needed.
-        {
-            let applist = self.apps.clone();
-            let new_apps = apps(&self.config);
-            let mut current_apps = applist.lock().expect("no lock poisoning");
-            if new_apps.ne(&current_apps) {
-                let _ = std::mem::replace(&mut *current_apps, new_apps);
-            }
-        }
-
         self.index_apps();
+    }
+
+    fn preload(&self) {
+        self.app_index.update();
     }
 }
 
 impl DeterministicSearchEngine {
-    pub fn build(config: &Configuration) -> Result<Self, Report> {
+    pub fn build(config: Arc<Configuration>) -> Result<Self, Report> {
         let db = FilesystemPersistence::open()?;
-        let apps: AppList = apps(config);
+        let app_index = AppIndex::build(config.clone());
         let substring_index = Arc::new(scc::HashMap::new());
 
         let learned_substring_index =
@@ -174,8 +167,8 @@ impl DeterministicSearchEngine {
         let (tx, _rx) = channel((0, vec![]));
         let engine = Self {
             db: Arc::new(Mutex::new(db)),
-            config: config.clone(),
-            apps: Arc::new(Mutex::new(apps)),
+            config,
+            app_index,
             learned_substring_index,
             substring_index,
             deferred_token: Arc::new(AtomicUsize::new(0)),
@@ -190,21 +183,18 @@ impl DeterministicSearchEngine {
 
     #[inline]
     fn index_apps(&self) {
-        self.apps
-            .lock()
-            .expect("no lock poisoning")
-            .par_iter()
-            .for_each(|app| {
-                for n in 0..=app.name.grapheme_len() {
-                    let substrings = substrings(&app.name, n);
-                    for substr in substrings {
-                        self.substring_index
-                            .entry_sync(substr.into())
-                            .or_default()
-                            .push(app.name.clone());
-                    }
+        let guard = Guard::new();
+        self.app_index.iter(&guard).for_each(|(_, app)| {
+            for n in 0..=app.name.grapheme_len() {
+                let substrings = substrings(&app.name, n);
+                for substr in substrings {
+                    self.substring_index
+                        .entry_sync(substr.into())
+                        .or_default()
+                        .push(app.name.clone());
                 }
-            });
+            }
+        });
     }
 
     #[inline]

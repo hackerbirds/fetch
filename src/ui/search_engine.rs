@@ -22,6 +22,15 @@ impl<SE: SearchEngine> GpuiSearchEngine<SE> {
         }
     }
 
+    pub fn preload(&self, cx: &mut gpui::Context<'_, Self>) {
+        let engine = self.engine.clone();
+
+        cx.background_spawn(async move {
+            engine.preload();
+        })
+        .detach();
+    }
+
     pub fn blocking_search(&mut self, query: AppString) {
         self.engine.blocking_search(query);
     }

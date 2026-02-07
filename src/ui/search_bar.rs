@@ -55,6 +55,10 @@ impl<SE: SearchEngine> SearchBar<SE> {
             is
         });
 
+        search_engine.update(cx, |this, cx| {
+            this.preload(cx);
+        });
+
         let subscriptions = vec![cx.subscribe_in(&input_state, window, {
             let input_state = input_state.clone();
             move |this, _, ev: &InputEvent, window, cx| {

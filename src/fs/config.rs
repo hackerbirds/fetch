@@ -6,11 +6,11 @@ use std::{
 };
 
 use global_hotkey::hotkey::{Code, HotKey, Modifiers};
-use gpui::{Global, Keystroke};
+use gpui::Keystroke;
 use rootcause::{Report, prelude::ResultExt, report};
 use serde::{Deserialize, Serialize};
 
-use crate::fs::apps::{APPLICATION_DIRS, APPLICATIONS};
+use crate::apps::{APPLICATION_DIRS, APPLICATIONS};
 
 const DEFAULT_HOTKEY: &str = "alt-space";
 const CONFIG_FILE_NAME: &str = "config.json";
@@ -39,13 +39,14 @@ impl Default for Configuration {
             open_search_hotkey: DEFAULT_HOTKEY.to_string(),
             launch_on_boot: true,
             prioritize_open_apps: true,
-            applications: default_applications(),
-            application_dirs: default_application_dirs(),
+            applications: APPLICATIONS.iter().map(|app| (*app).to_string()).collect(),
+            application_dirs: APPLICATION_DIRS
+                .iter()
+                .map(|app_dir| (*app_dir).to_string())
+                .collect(),
         }
     }
 }
-
-impl Global for Configuration {}
 
 impl Configuration {
     pub fn read_from_fs() -> Result<Configuration, Report> {
@@ -148,17 +149,4 @@ pub fn config_file_path() -> Result<PathBuf, Report> {
     fetch_app_dir.push(CONFIG_FILE_NAME);
 
     Ok(fetch_app_dir)
-}
-
-#[inline]
-fn default_applications() -> Vec<String> {
-    APPLICATIONS.iter().map(|app| (*app).to_string()).collect()
-}
-
-#[inline]
-fn default_application_dirs() -> Vec<String> {
-    APPLICATION_DIRS
-        .iter()
-        .map(|app_dir| (*app_dir).to_string())
-        .collect()
 }
