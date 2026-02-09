@@ -10,6 +10,7 @@ use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{ActiveTheme, StyledExt};
 
 use crate::apps::app_string::AppString;
+use crate::apps::url::Url;
 use crate::extensions::{SearchEngine, SearchResult};
 use crate::fs::config::config_file_path;
 use crate::ui::gpui_app::{GpuiApp, GpuiAppLoader};
@@ -156,7 +157,7 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
             .on_action(cx.listener(|_, &OpenSettings, window, cx| {
                 window.remove_window();
                 if let Ok(cfg_path) = config_file_path() {
-                    cx.open_with_system(&cfg_path);
+                    Url::File(cfg_path).open().ok();
                 }
                 cx.notify();
             }))
@@ -170,7 +171,7 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
                     .cloned();
 
                 if let Some(SearchResult::Executable(app)) = app_opt {
-                    cx.open_with_system(app.path.as_path());
+                    let _ = Url::File(app.path.clone()).open();
                     this.search_engine.update(cx, |search_engine, cx| {
                         search_engine.after_search(cx, Some(app));
                     });
@@ -253,8 +254,8 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
                                             )
                                         })
                                         .hover(|style| style.bg(cx.theme().secondary_hover))
-                                        .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                                            cx.open_with_system(path.as_path());
+                                        .on_mouse_down(MouseButton::Left, move |_, window, _cx| {
+                                            Url::File(path.clone()).open().ok();
                                             window.remove_window();
                                         })
                                         .on_hover(cx.listener(move |this, hovered, _window, cx| {

@@ -1,6 +1,7 @@
 pub mod app_string;
 pub mod app_substr;
 pub mod index;
+pub mod url;
 
 use std::path::PathBuf;
 
