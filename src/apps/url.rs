@@ -1,4 +1,4 @@
-use std::{fmt::Display, path::PathBuf, process::Command};
+use std::{borrow::Cow, fmt::Display, path::PathBuf, process::Command};
 
 use rootcause::Report;
 use serde::{Deserialize, Serialize};
@@ -9,6 +9,8 @@ use crate::apps::ExecutableApp;
 pub enum Url {
     /// A URL to handle opening files (`file://`)
     File(PathBuf),
+    /// A URL to handle opening web URLs (`https://`)
+    Https(Cow<'static, str>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,6 +24,9 @@ impl Display for Url {
         match self {
             Url::File(path_buf) => {
                 write!(f, "file://{}", path_buf.display())
+            }
+            Url::Https(domain) => {
+                write!(f, "https://{domain}")
             }
         }
     }

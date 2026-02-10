@@ -11,6 +11,7 @@ use gpui_component::{ActiveTheme, StyledExt};
 
 use crate::apps::app_string::AppString;
 use crate::apps::url::Url;
+use crate::command::CommandTrie;
 use crate::extensions::{SearchEngine, SearchResult};
 use crate::fs::config::config_file_path;
 use crate::ui::gpui_app::{GpuiApp, GpuiAppLoader};
@@ -20,6 +21,7 @@ use crate::{EnterPressed, EscPressed, OpenSettings, TabBackSelectApp, TabSelectA
 pub struct SearchBar<SE: SearchEngine> {
     search_engine: Entity<GpuiSearchEngine<SE>>,
     input_state: Entity<InputState>,
+    commands: CommandTrie,
     #[expect(unused)]
     subscriptions: Vec<Subscription>,
     /// The index of the first result the user has scrolled to
@@ -82,6 +84,7 @@ impl<SE: SearchEngine> SearchBar<SE> {
         Self {
             search_engine,
             input_state,
+            commands: CommandTrie::default(),
             subscriptions,
             scrolled_result_idx: 0,
             hovered_offset_idx: 0,
@@ -175,6 +178,9 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
                     this.search_engine.update(cx, |search_engine, cx| {
                         search_engine.after_search(cx, Some(app));
                     });
+                    window.remove_window();
+                } else if this.commands.execute(this.input_state.read(cx).value().as_str()).is_ok() {
+                    // tmp hack: execute command that might exist
                     window.remove_window();
                 }
 
