@@ -3,7 +3,7 @@ use std::sync::Arc;
 use gpui::{AppContext, Entity};
 
 use crate::{
-    apps::{ExecutableApp, app_string::AppString},
+    app::{AppString, ExecutableApp},
     extensions::{DeferredReceiver, DeferredToken, SearchEngine, SearchResult},
 };
 

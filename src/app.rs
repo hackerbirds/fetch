@@ -1,16 +1,52 @@
-use std::{fmt::Display, ops::Deref};
+use std::{fmt::Display, ops::Deref, path::PathBuf};
 
-use arcstr::ArcStr;
+use arcstr::{ArcStr, Substr};
 use gpui::SharedString;
 use serde::{Deserialize, Serialize};
 use unicase::UniCase;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::apps::app_substr::AppSubstr;
-
 /// Case insensitive, efficient representation of an immutable UTF-8 encoded string
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AppString(#[serde(with = "unicase_serde::unicase")] UniCase<ArcStr>);
+
+/// NOTE: Case insensitive, efficient representation of an immutable substring
+///
+/// Obtained with [`AppString::substring`]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct AppSubstr(pub(super) UniCase<Substr>);
+
+pub type AppName = AppString;
+pub type AppList = Box<[ExecutableApp]>;
+
+/// An executable app the user can launch.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
+pub struct ExecutableApp {
+    pub(crate) name: AppName,
+    pub(crate) path: PathBuf,
+    pub(crate) is_open: bool,
+    pub(crate) icon_png_data: Option<Vec<u8>>,
+}
+
+impl Deref for AppSubstr {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_str()
+    }
+}
+
+impl From<String> for AppSubstr {
+    fn from(value: String) -> Self {
+        Self(UniCase::new(Substr::from(value)))
+    }
+}
+
+impl From<&str> for AppSubstr {
+    fn from(value: &str) -> Self {
+        Self(UniCase::new(Substr::from(value)))
+    }
+}
 
 impl Display for AppString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -65,5 +101,17 @@ impl Deref for AppString {
 
     fn deref(&self) -> &Self::Target {
         self.0.as_str()
+    }
+}
+
+impl PartialOrd for ExecutableApp {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ExecutableApp {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.path.cmp(&other.path)
     }
 }

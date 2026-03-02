@@ -14,7 +14,7 @@ use rootcause::{Report, report};
 use scc::HashSet;
 
 use crate::{
-    apps::ExecutableApp,
+    app::ExecutableApp,
     fs::config::Configuration,
     platform::Platform,
     url::{Url, UrlEntry},

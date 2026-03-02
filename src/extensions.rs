@@ -3,7 +3,7 @@ use tokio::sync::watch::{self, Receiver, Sender};
 
 pub mod deterministic_search;
 
-use crate::apps::{ExecutableApp, app_string::AppString};
+use crate::app::{AppString, ExecutableApp};
 
 pub type DeferredToken = usize;
 pub type DeferredMessage = (DeferredToken, Vec<SearchResult>);

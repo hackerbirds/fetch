@@ -20,7 +20,7 @@ use tokio::sync::watch::channel;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
-    apps::{AppName, ExecutableApp, app_string::AppString, app_substr::AppSubstr},
+    app::{AppName, AppString, AppSubstr, ExecutableApp},
     extensions::{DeferredReceiver, DeferredSender, DeferredToken, SearchEngine, SearchResult},
     fs::{
         config::Configuration,

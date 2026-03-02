@@ -9,7 +9,7 @@ use gpui::{
 use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{ActiveTheme, StyledExt};
 
-use crate::apps::app_string::AppString;
+use crate::app::AppString;
 use crate::command::CommandTrie;
 use crate::extensions::{SearchEngine, SearchResult};
 use crate::fs::config::config_file_path;

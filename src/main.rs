@@ -21,7 +21,7 @@ use gpui::{
 use gpui_component::Root;
 use rootcause::Report;
 
-pub mod apps;
+pub mod app;
 pub mod command;
 pub mod extensions;
 pub mod fs;

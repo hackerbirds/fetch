@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use scc::{Guard, HashIndex};
 
 use crate::{
-    apps::ExecutableApp,
+    app::ExecutableApp,
     fs::config::Configuration,
     platform::{ImplPlatform, Platform},
 };
