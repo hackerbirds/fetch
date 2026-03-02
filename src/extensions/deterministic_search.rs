@@ -15,17 +15,18 @@ use rayon::{
     slice::ParallelSliceMut,
 };
 use rootcause::Report;
-use scc::{Guard, HashMap};
+use scc::{Guard, HashMap, hash_map::OccupiedEntry};
 use tokio::sync::watch::channel;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
-    apps::{AppName, ExecutableApp, app_string::AppString, app_substr::AppSubstr, index::AppIndex},
+    apps::{AppName, ExecutableApp, app_string::AppString, app_substr::AppSubstr},
     extensions::{DeferredReceiver, DeferredSender, DeferredToken, SearchEngine, SearchResult},
     fs::{
         config::Configuration,
         db::{AppPersistence, FilesystemPersistence},
     },
+    url::{UrlEntry, UrlIndex},
 };
 
 /// This simple search engine works by caching
@@ -45,7 +46,7 @@ use crate::{
 pub struct DeterministicSearchEngine {
     db: Arc<Mutex<FilesystemPersistence>>,
     config: Arc<Configuration>,
-    app_index: AppIndex,
+    url_index: UrlIndex,
     learned_substring_index: Arc<HashMap<AppString, ExecutableApp>>,
     substring_index: Arc<HashMap<AppString, Vec<AppName>>>,
 
@@ -73,10 +74,17 @@ impl SearchEngine for DeterministicSearchEngine {
         let guard = Guard::new();
 
         let mut filtered_apps: Vec<ExecutableApp> = self
-            .app_index
+            .url_index
             .iter(&guard)
-            .map(|(_, app)| app.clone())
+            .filter_map(|(_, url)| {
+                if let UrlEntry::App { app } = url {
+                    Some(app)
+                } else {
+                    None
+                }
+            })
             .filter(|app| self.is_query_substring_of_app_name(&query, &app.name))
+            .cloned()
             .collect();
 
         filtered_apps.par_sort_by_cached_key(|app| app.name.clone());
@@ -96,11 +104,9 @@ impl SearchEngine for DeterministicSearchEngine {
         });
 
         filtered_apps.par_sort_by_key(|app| {
-            i32::from(
-                self.learned_substring_index
-                    .get_sync(&query)
-                    .is_none_or(|s| s.get().name != app.name),
-            )
+            i32::from(self.learned_substring_index.get_sync(&query).is_none_or(
+                |s: OccupiedEntry<'_, AppString, ExecutableApp, _>| s.get().name != app.name,
+            ))
         });
 
         if self.config.prioritize_open_apps {
@@ -151,14 +157,14 @@ impl SearchEngine for DeterministicSearchEngine {
     }
 
     fn preload(&self) {
-        self.app_index.update();
+        self.url_index.update();
     }
 }
 
 impl DeterministicSearchEngine {
     pub fn build(config: Arc<Configuration>) -> Result<Self, Report> {
         let db = FilesystemPersistence::open()?;
-        let app_index = AppIndex::build(config.clone());
+        let app_index = UrlIndex::build(config.clone());
         let substring_index = Arc::new(scc::HashMap::new());
 
         let learned_substring_index =
@@ -168,7 +174,7 @@ impl DeterministicSearchEngine {
         let engine = Self {
             db: Arc::new(Mutex::new(db)),
             config,
-            app_index,
+            url_index: app_index,
             learned_substring_index,
             substring_index,
             deferred_token: Arc::new(AtomicUsize::new(0)),
@@ -184,14 +190,16 @@ impl DeterministicSearchEngine {
     #[inline]
     fn index_apps(&self) {
         let guard = Guard::new();
-        self.app_index.iter(&guard).for_each(|(_, app)| {
-            for n in 0..=app.name.grapheme_len() {
-                let substrings = substrings(&app.name, n);
-                for substr in substrings {
-                    self.substring_index
-                        .entry_sync(substr.into())
-                        .or_default()
-                        .push(app.name.clone());
+        self.url_index.iter(&guard).for_each(|(_, url_entry)| {
+            if let UrlEntry::App { app } = url_entry {
+                for n in 0..=app.name.grapheme_len() {
+                    let substrings = substrings(&app.name, n);
+                    for substr in substrings {
+                        self.substring_index
+                            .entry_sync(substr.into())
+                            .or_default()
+                            .push(app.name.clone());
+                    }
                 }
             }
         });

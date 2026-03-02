@@ -25,7 +25,9 @@ pub mod apps;
 pub mod command;
 pub mod extensions;
 pub mod fs;
+pub mod platform;
 pub mod ui;
+pub mod url;
 
 const APP_NAME: &str = "Fetch";
 

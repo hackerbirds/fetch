@@ -10,7 +10,7 @@ use gpui::Keystroke;
 use rootcause::{Report, prelude::ResultExt, report};
 use serde::{Deserialize, Serialize};
 
-use crate::apps::{APPLICATION_DIRS, APPLICATIONS};
+use crate::platform::{ImplPlatform, Platform};
 
 const DEFAULT_HOTKEY: &str = "alt-space";
 const CONFIG_FILE_NAME: &str = "config.json";
@@ -39,10 +39,14 @@ impl Default for Configuration {
             open_search_hotkey: DEFAULT_HOTKEY.to_string(),
             launch_on_boot: true,
             prioritize_open_apps: true,
-            applications: APPLICATIONS.iter().map(|app| (*app).to_string()).collect(),
-            application_dirs: APPLICATION_DIRS
+            // TODO: Replace `String` types in `Configuration` with `PathBuf`
+            applications: ImplPlatform::default_app_paths()
                 .iter()
-                .map(|app_dir| (*app_dir).to_string())
+                .map(|app| (*app).to_string_lossy().to_string())
+                .collect(),
+            application_dirs: ImplPlatform::default_app_dirs()
+                .iter()
+                .map(|app_dir| (*app_dir).to_string_lossy().to_string())
                 .collect(),
         }
     }

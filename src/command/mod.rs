@@ -3,7 +3,10 @@ use std::borrow::Cow;
 use rootcause::{Report, option_ext::OptionExt};
 use trie_rs::map::{Trie, TrieBuilder};
 
-use crate::apps::url::Url;
+use crate::{
+    platform::{ImplPlatform, Platform},
+    url::Url,
+};
 
 pub struct CommandTrie {
     inner: Trie<u8, Url>,
@@ -26,7 +29,7 @@ impl CommandTrie {
     pub fn execute(&self, command: &str) -> Result<(), Report> {
         self.inner
             .exact_match(command)
-            .and_then(|res| res.open().ok())
+            .and_then(|res| ImplPlatform::open_url(res).ok())
             .ok_or_report()?;
 
         Ok(())

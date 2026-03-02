@@ -10,12 +10,13 @@ use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{ActiveTheme, StyledExt};
 
 use crate::apps::app_string::AppString;
-use crate::apps::url::Url;
 use crate::command::CommandTrie;
 use crate::extensions::{SearchEngine, SearchResult};
 use crate::fs::config::config_file_path;
+use crate::platform::{ImplPlatform, Platform};
 use crate::ui::gpui_app::{GpuiApp, GpuiAppLoader};
 use crate::ui::search_engine::GpuiSearchEngine;
+use crate::url::Url;
 use crate::{EnterPressed, EscPressed, OpenSettings, TabBackSelectApp, TabSelectApp};
 
 pub struct SearchBar<SE: SearchEngine> {
@@ -160,7 +161,7 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
             .on_action(cx.listener(|_, &OpenSettings, window, cx| {
                 window.remove_window();
                 if let Ok(cfg_path) = config_file_path() {
-                    Url::File(cfg_path).open().ok();
+                    ImplPlatform::open_url(&Url::File(cfg_path)).ok();
                 }
                 cx.notify();
             }))
@@ -174,7 +175,7 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
                     .cloned();
 
                 if let Some(SearchResult::Executable(app)) = app_opt {
-                    let _ = Url::File(app.path.clone()).open();
+                    ImplPlatform::open_url(&Url::File(app.path.clone())).ok();
                     this.search_engine.update(cx, |search_engine, cx| {
                         search_engine.after_search(cx, Some(app));
                     });
@@ -261,7 +262,7 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
                                         })
                                         .hover(|style| style.bg(cx.theme().secondary_hover))
                                         .on_mouse_down(MouseButton::Left, move |_, window, _cx| {
-                                            Url::File(path.clone()).open().ok();
+                                            ImplPlatform::open_url(&Url::File(path.clone())).ok();
                                             window.remove_window();
                                         })
                                         .on_hover(cx.listener(move |this, hovered, _window, cx| {
