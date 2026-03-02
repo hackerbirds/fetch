@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use crate::extensions::deterministic_search::DeterministicSearchEngine;
 use crate::fs::config::Configuration;
-use crate::ui::search_bar::SearchBar;
-use crate::ui::search_engine::GpuiSearchEngine;
+use crate::gui::search_bar::SearchBar;
+use crate::gui::search_engine::GpuiSearchEngine;
 use global_hotkey::GlobalHotKeyManager;
 use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
 use gpui::{
@@ -25,8 +25,8 @@ pub mod app;
 pub mod command;
 pub mod extensions;
 pub mod fs;
+pub mod gui;
 pub mod platform;
-pub mod ui;
 pub mod url;
 
 const APP_NAME: &str = "Fetch";

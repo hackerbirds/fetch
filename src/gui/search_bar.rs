@@ -13,9 +13,9 @@ use crate::app::AppString;
 use crate::command::CommandTrie;
 use crate::extensions::{SearchEngine, SearchResult};
 use crate::fs::config::config_file_path;
+use crate::gui::gpui_app::{GpuiApp, GpuiAppLoader};
+use crate::gui::search_engine::GpuiSearchEngine;
 use crate::platform::{ImplPlatform, Platform};
-use crate::ui::gpui_app::{GpuiApp, GpuiAppLoader};
-use crate::ui::search_engine::GpuiSearchEngine;
 use crate::url::Url;
 use crate::{EnterPressed, EscPressed, OpenSettings, TabBackSelectApp, TabSelectApp};
 
