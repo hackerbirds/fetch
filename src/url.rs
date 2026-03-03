@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Display, path::PathBuf, sync::Arc};
+use std::{borrow::Cow, fmt::Display, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -45,12 +45,12 @@ impl From<PathBuf> for Url {
 
 /// An index map of all known apps, optimized for fast reads.
 #[derive(Debug, Clone)]
-pub struct UrlIndex(Arc<Configuration>, scc::HashIndex<Url, UrlEntry>);
+pub struct UrlIndex(scc::HashIndex<Url, UrlEntry>);
 
 impl UrlIndex {
     #[must_use]
-    pub fn build(config: Arc<Configuration>) -> Self {
-        let apps = ImplPlatform::list_binary_paths(&config);
+    pub fn build(config: &Configuration) -> Self {
+        let apps = ImplPlatform::list_binary_paths(config);
         let map = HashIndex::with_capacity(apps.len());
 
         apps.iter_sync(|p| {
@@ -62,12 +62,12 @@ impl UrlIndex {
             true
         });
 
-        Self(config, map)
+        Self(map)
     }
 
-    pub fn update(&self) {
-        let apps = ImplPlatform::list_binary_paths(&self.0);
-        self.1.retain_sync(|k, _v| {
+    pub fn update(&self, config: &Configuration) {
+        let apps = ImplPlatform::list_binary_paths(config);
+        self.0.retain_sync(|k, _v| {
             if let Url::File(path) = k {
                 apps.contains_sync(path)
             } else {
@@ -79,7 +79,7 @@ impl UrlIndex {
             if let Some(url_entry) = ImplPlatform::to_url_entry(&url) {
                 // If the key already exists (kept from the retain call)
                 // then this doesn't update, so it stays efficient
-                let _ = self.1.insert_sync(url, url_entry);
+                let _ = self.0.insert_sync(url, url_entry);
             }
 
             true
@@ -87,10 +87,10 @@ impl UrlIndex {
     }
 
     pub fn get<'a>(&'a self, url: &'a Url, guard: &'a Guard) -> Option<&'a UrlEntry> {
-        self.1.peek(url, guard)
+        self.0.peek(url, guard)
     }
 
     pub fn iter<'a>(&'a self, guard: &'a Guard) -> impl Iterator<Item = (&'a Url, &'a UrlEntry)> {
-        self.1.iter(guard)
+        self.0.iter(guard)
     }
 }

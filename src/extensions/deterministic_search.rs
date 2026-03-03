@@ -157,14 +157,14 @@ impl SearchEngine for DeterministicSearchEngine {
     }
 
     fn preload(&self) {
-        self.url_index.update();
+        self.url_index.update(&self.config);
     }
 }
 
 impl DeterministicSearchEngine {
     pub fn build(config: Arc<Configuration>) -> Result<Self, Report> {
         let db = FilesystemPersistence::open()?;
-        let app_index = UrlIndex::build(config.clone());
+        let app_index = UrlIndex::build(&config);
         let substring_index = Arc::new(scc::HashMap::new());
 
         let learned_substring_index =
