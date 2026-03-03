@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{ErrorKind, Write},
+    io::{ErrorKind, Read, Write},
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::platform::{ImplPlatform, Platform};
 
 const DEFAULT_HOTKEY: &str = "alt-space";
-const CONFIG_FILE_NAME: &str = "config.json";
+const CONFIG_FILE_NAME: &str = "config.toml";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -55,25 +55,27 @@ impl Default for Configuration {
 impl Configuration {
     pub fn read_from_fs() -> Result<Configuration, Report> {
         let config_path = config_file_path()?;
-        let config_file = File::options()
+        let mut config_file = File::options()
             .read(true)
             .write(true)
             .create(true)
             .truncate(false)
             .open(&config_path)?;
 
-        if let Ok(res) = serde_json::from_reader(&config_file) {
-            Ok(res)
-        } else {
-            // Write defaults to fs if config file is corrupted or doesn'texist
-            let config = Configuration::default();
-            config.write_to_fs(&config_path)?;
-            Ok(config)
+        let mut buffer = vec![];
+        match config_file.read_to_end(&mut buffer) {
+            Ok(0) | Err(_) => {
+                // Write defaults to fs if config file is corrupted or doesn'texist
+                let config = Configuration::default();
+                config.write_to_fs(&config_path)?;
+                Ok(config)
+            }
+            Ok(_) => Ok(toml::from_slice(&buffer).into_report()?),
         }
     }
 
     fn write_to_fs(&self, path: &Path) -> Result<(), Report> {
-        let serialized = serde_json::to_vec_pretty(self)?;
+        let serialized = toml::to_string_pretty(self)?;
 
         let mut config_file = File::options()
             .write(true)
