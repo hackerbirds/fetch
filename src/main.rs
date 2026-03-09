@@ -83,12 +83,6 @@ fn main() -> Result<(), Report> {
         // This must be called before using any GPUI Component features.
         gpui_component::init(cx);
 
-        let display_center = cx
-            .primary_display()
-            .expect("Display exists")
-            .bounds()
-            .center();
-
         cx.spawn(async move |cx| {
             let search_engine = match DeterministicSearchEngine::build(config) {
                 Ok(engine) => engine,
@@ -115,6 +109,14 @@ fn main() -> Result<(), Report> {
                     .await
                 {
                     // Hotkey pressed -> open window
+                    let display_center = cx
+                        .update(|app| {
+                            app.primary_display()
+                                .expect("A GUI app requires a display, so there should always be a primary display")
+                                .bounds()
+                                .center()
+                        }).expect("global read lock");
+
                     let window_options = WindowOptions {
                         window_bounds: Some(WindowBounds::Windowed(Bounds::centered_at(
                             display_center,
