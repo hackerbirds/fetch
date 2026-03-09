@@ -50,7 +50,7 @@ pub struct UrlIndex(scc::HashIndex<Url, UrlEntry>);
 impl UrlIndex {
     #[must_use]
     pub fn build(config: &Configuration) -> Self {
-        let apps = ImplPlatform::list_binary_paths(config);
+        let apps = ImplPlatform::list_binary_paths(config, false);
         let map = HashIndex::with_capacity(apps.len());
 
         apps.iter_sync(|p| {
@@ -66,7 +66,7 @@ impl UrlIndex {
     }
 
     pub fn update(&self, config: &Configuration) {
-        let apps = ImplPlatform::list_binary_paths(config);
+        let apps = ImplPlatform::list_binary_paths(config, true);
         self.0.retain_sync(|k, _v| {
             if let Url::File(path) = k {
                 apps.contains_sync(path)

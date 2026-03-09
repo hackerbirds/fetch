@@ -3,6 +3,7 @@ use std::{
     io::BufReader,
     path::{Path, PathBuf},
     process::Command,
+    str::FromStr,
 };
 
 use icns::IconFamily;
@@ -114,10 +115,64 @@ impl MacPlatform {
             icon_png_data,
         })
     }
+
+    fn read_apps_from_dir_path(config: &Configuration) -> scc::HashSet<PathBuf> {
+        let default_app_paths = config
+            .applications
+            .iter()
+            .filter_map(|app_path| PathBuf::from_str(app_path).ok());
+
+        config
+            .application_dirs
+            .iter()
+            .filter_map(|app_dir| std::fs::read_dir(app_dir).ok())
+            .flat_map(IntoIterator::into_iter)
+            .filter_map(Result::ok)
+            .filter_map(|entry| {
+                entry
+                    .path()
+                    .extension()
+                    .is_some_and(|d| d == "app")
+                    .then_some(entry.path())
+            })
+            .chain(default_app_paths)
+            .collect()
+    }
+
+    fn list_mdfind_apps(config: &Configuration) -> scc::HashSet<PathBuf> {
+        let mut cmd = Command::new("mdfind");
+
+        cmd.arg("kMDItemKind == 'Application'");
+
+        for path in &config.application_dirs {
+            cmd.arg("-onlyin");
+            cmd.arg(path);
+        }
+
+        let mdfind_bytes = cmd.output().unwrap().stdout;
+
+        let apps = String::from_utf8(mdfind_bytes).unwrap();
+
+        let set = HashSet::new();
+
+        apps.par_split('\n').map(PathBuf::from).for_each(|p| {
+            let _ = set.insert_sync(p);
+        });
+
+        config.applications.par_iter().for_each(|app_path| {
+            let _ = set.insert_sync(app_path.to_owned().into());
+        });
+
+        set
+    }
 }
 
 impl super::Platform for MacPlatform {
     fn default_app_paths() -> Vec<PathBuf> {
+        vec!["/System/Library/CoreServices/Finder.app".into()]
+    }
+
+    fn default_app_dirs() -> Vec<PathBuf> {
         vec![
             "/Applications".into(),
             "/Applications/Utilities".into(),
@@ -126,10 +181,6 @@ impl super::Platform for MacPlatform {
             "/System/Library/CoreServices/Applications".into(),
             "~/Applications".into(),
         ]
-    }
-
-    fn default_app_dirs() -> Vec<PathBuf> {
-        vec!["/System/Library/CoreServices/Finder.app".into()]
     }
 
     fn list_open_binaries() -> Vec<PathBuf> {
@@ -173,28 +224,19 @@ impl super::Platform for MacPlatform {
         Ok(())
     }
 
-    fn list_binary_paths(config: &Configuration) -> scc::HashSet<PathBuf> {
-        let mut cmd = Command::new("mdfind");
-        cmd.arg("kMDItemKind == 'Application'");
+    /// Lists the paths of every application to list.
+    ///
+    /// If `quick` is set to true, this function will only rely on Spotlight indexing,
+    /// which is faster but can lead to inaccuracies or no result at all.
+    fn list_binary_paths(config: &Configuration, quick: bool) -> scc::HashSet<PathBuf> {
+        let set = Self::list_mdfind_apps(config);
 
-        for path in &config.application_dirs {
-            cmd.arg("-onlyin");
-            cmd.arg(path);
+        if !quick {
+            Self::read_apps_from_dir_path(config).iter_sync(|e| {
+                let _ = set.insert_sync(e.clone());
+                true
+            });
         }
-
-        let mdfind_bytes = cmd.output().unwrap().stdout;
-
-        let apps = String::from_utf8(mdfind_bytes).unwrap();
-
-        let set = HashSet::new();
-
-        apps.par_split('\n').map(PathBuf::from).for_each(|p| {
-            let _ = set.insert_sync(p);
-        });
-
-        config.applications.par_iter().for_each(|app_path| {
-            let _ = set.insert_sync(app_path.to_owned().into());
-        });
 
         set
     }

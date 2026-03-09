@@ -23,7 +23,7 @@ pub trait Platform {
     fn default_app_dirs() -> Vec<PathBuf>;
 
     /// List of binaries to display in search results.
-    fn list_binary_paths(config: &Configuration) -> HashSet<PathBuf>;
+    fn list_binary_paths(config: &Configuration, quick: bool) -> HashSet<PathBuf>;
 
     /// List of the path of the binaries that are currently running
     /// on the system.
