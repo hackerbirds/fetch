@@ -2,9 +2,9 @@ use std::cmp::min;
 
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    AppContext, Context, Corners, ElementId, Entity, Fill, InteractiveElement, IntoElement,
+    AppContext, Context, Corners, ElementId, Entity, Fill, Hsla, InteractiveElement, IntoElement,
     MouseButton, Negate, ParentElement, Pixels, Point, Render, ScrollHandle,
-    StatefulInteractiveElement, Styled, Subscription, Window, div, img,
+    StatefulInteractiveElement, Styled, Subscription, Window, div, img, px,
 };
 use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{ActiveTheme, StyledExt};
@@ -105,6 +105,13 @@ impl<SE: SearchEngine> Render for SearchBar<SE> {
             .size_full()
             .items_center()
             .justify_center()
+            // Display a red border when the app in running in debug mode
+            .when(cfg!(debug_assertions), |mut this| {
+                this.style().border_widths = gpui::EdgesRefinement { top: Some(px(4f32).into()), right: Some(px(4f32).into()), bottom: Some(px(4f32).into()), left: Some(px(4f32).into()) };
+                this.style().border_color = Some(Hsla::red());
+
+                this
+            })
             .bg(cx.theme().secondary)
             .on_action(cx.listener(|this, &TabSelectApp, _, cx| {
                 let results_len = this.search_engine.read(cx).results.len();
